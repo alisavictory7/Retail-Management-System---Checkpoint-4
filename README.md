@@ -1,9 +1,9 @@
-# Retail Management System - Quality Attributes & Tactics Implementation
+# Retail Management System - Checkpoint 3
 
 **Author:** Alisa  
-**Repository:** https://github.com/alisavictory7/Retail-Management-System---Checkpoint-2
+**Repository:** https://github.com/alisavictory7/Retail-Management-System---Checkpoint-3
 
-A comprehensive web-based retail management system built with Flask and PostgreSQL, featuring advanced quality attributes and tactics implementation. The system demonstrates enterprise-grade patterns including circuit breakers, graceful degradation, security measures, performance optimization, and comprehensive testing strategies.
+Checkpoint 3 focuses on making the system deployable, observable, and reliable, while also introducing a realistic new feature: Returns & Refunds (RMA workflow).
 
 ## 🚀 Project Description
 
@@ -79,8 +79,8 @@ Before setting up the project, ensure you have the following installed:
 
 ### 1. Clone the Repository
 ```bash
-git clone https://github.com/alisavictory7/Retail-Management-System---Checkpoint-2.git
-cd Retail-Management-System---Checkpoint-2
+git clone https://github.com/alisavictory7/Retail-Management-System---Checkpoint-3.git
+cd Retail-Management-System---Checkpoint-3
 ```
 
 ### 2. Create and Activate Virtual Environment
@@ -198,6 +198,44 @@ Then run:
 SELECT * FROM "Product";  # View sample products
 \q
 ```
+
+## 🐳 Docker & Compose Deployment
+
+Prefer a reproducible local stack? Run everything with Docker:
+
+1. **Copy the environment template**
+   ```bash
+   cp env.example .env  # or copy manually on Windows
+   ```
+   Update the secrets (e.g., `DB_PASSWORD`, `SECRET_KEY`) before continuing.
+
+2. **Build and start the stack**
+   ```bash
+   docker compose up --build
+   ```
+   - `db` runs PostgreSQL 15 and automatically executes `db/init.sql`, the CP3 migration, and the returns demo seed via `/docker-entrypoint-initdb.d`.
+   - `web` builds the Flask app image (Python 3.12 slim) and serves it via Gunicorn on port `5000`.
+
+3. **Verify**
+   - Visit `http://localhost:5000` for the storefront.
+   - Log in as user ID 1 (or create a new account) and navigate to `/returns` and `/admin/returns`.
+
+4. **Shut down**
+   ```bash
+   docker compose down           # stop containers
+   docker compose down -v        # stop + remove the postgres volume
+   ```
+
+> **Troubleshooting tips**
+> - Use `docker compose logs -f web` to watch application logs (structured logging will be added in the observability task).
+> - If you need to reseed the database, remove the `postgres_data` volume (`docker compose down -v`) and re-run `docker compose up`.
+
+## 📈 Observability Endpoints
+
+- `GET /health` – lightweight health probe (includes DB status).
+- `GET /admin/metrics` – JSON snapshot of counters, gauges, histograms, and recent events (admin only).
+- `GET /admin/dashboard` – Tailwind dashboard summarizing KPIs (returns volume, refund success rate, HTTP latency) and recent events. Requires logging in as the admin user (ID 1).
+- To demo the availability scenario, temporarily set `PAYMENT_REFUND_FAILURE_PROBABILITY=1.0` in `.env` so every refund triggers the circuit breaker and the dashboard counters.
 
 The initialization script will:
 - Create all necessary tables (User, Product, Sale, Payment, SaleItem, FailedPaymentLog)

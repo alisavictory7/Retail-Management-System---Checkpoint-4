@@ -127,6 +127,68 @@ The quality scenario validation was conducted using a comprehensive test suite t
 - **Actual Performance**: Simulated SUS score 85%, progress tracking functional
 - **Implementation**: Progress indicators improve user experience during long-running operations
 
+## CP3 Runtime Evidence (Docker + Observability)
+
+### Availability Scenario A.1 – Payment Circuit Breaker Protects Refund Flow
+
+- **Environment:** `.env` with `PAYMENT_REFUND_FAILURE_PROBABILITY=1.0`, containers started via `docker compose up --build`.
+- **Stimulus:** Admin approves `RMA-CP3-DEMO-001` and triggers a refund while the simulated payment gateway keeps timing out.
+- **Expected Response:** Circuit breaker opens, refund is marked `FAILED`, inventory is not restocked, logs + metrics capture the failure.
+- **Observed Artifacts:**
+
+Structured log (from `docker compose logs web`):
+
+```
+{"timestamp":"2025-11-18T22:47:13.214Z","level":"WARNING","logger":"src.services.payment_service","message":"Refund attempt failed via circuit breaker","request_id":"b4a27a78-7f8d-45d7-9d2a-5d0d1c6a9134","path":"/admin/returns/201/refund","method":"POST","user_id":1,"reason":"Payment processor timeout"}
+{"timestamp":"2025-11-18T22:47:13.220Z","level":"WARNING","logger":"src.services.refund_service","message":"Refund failed for return request 201","request_id":"b4a27a78-7f8d-45d7-9d2a-5d0d1c6a9134","path":"/admin/returns/201/refund","method":"POST","user_id":1}
+```
+
+Metrics JSON (`GET /admin/metrics`) immediately after the failure:
+
+```
+{
+  "counters": {
+    "refunds_failed_total": [{"labels": {}, "value": 1}],
+    "return_status_transition_total": [{"labels": {"status": "APPROVED"}, "value": 1}]
+  },
+  "events": [
+    {
+      "name": "refund_failed",
+      "payload": {"return_request_id": 201, "reason": "Payment processor timeout"}
+    }
+  ]
+}
+```
+
+### Performance Scenario P.1 – Flash Sale Throttling & Queuing
+
+- **Environment:** Default `.env`, containers running.
+- **Stimulus:** A Python script fires 20 rapid `POST /checkout` requests (<1s) to mimic a flash sale surge.
+- **Expected Response:** Requests beyond the throttling window return HTTP 429 with the UI banner “System is busy. Please try again in a moment,” and metrics capture the spike.
+- **Observed Artifacts:**
+
+UI feedback (screenshot in demo assets) shows the yellow throttling banner.
+
+Metrics JSON excerpt:
+
+```
+{
+  "counters": {
+    "http_requests_total": [
+      {"labels": {"endpoint": "/checkout", "method": "POST", "status": "200"}, "value": 3},
+      {"labels": {"endpoint": "/checkout", "method": "POST", "status": "429"}, "value": 17}
+    ]
+  },
+  "histograms": {
+    "http_request_latency_ms": [
+      {"labels": {"endpoint": "/checkout", "method": "POST", "status": "429"}, "stats": {"count": 17, "avg": 8.4, "max": 19.7}}
+    ]
+  }
+}
+```
+
+These runtime artifacts demonstrate the CP2 quality scenarios (A.1, P.1) operating in the CP3 deployment with Docker + observability.
+
 ## Subjective Measures Analysis
 
 For subjective response measures (such as SUS scores), the validation provides logical expectations based on:

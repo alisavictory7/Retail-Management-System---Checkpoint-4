@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-100 text-gray-900 min-h-screen">
+    {% include 'partials/navbar.html' %}
+
+    <main class="container mx-auto px-4 py-8 space-y-8">
+        <section class="grid md:grid-cols-3 gap-4">
+            <div class="bg-white p-4 rounded-xl shadow">
+                <p class="text-sm text-gray-500 uppercase">System Status</p>
+                <p class="text-2xl font-semibold mt-2 {{ 'text-green-600' if db_status.status == 'UP' else 'text-red-600' }}">
+                    {{ db_status.status }}
+                </p>
+            </div>
+            <div class="bg-white p-4 rounded-xl shadow">
+                <p class="text-sm text-gray-500 uppercase">Total Returns</p>
+                <p class="text-2xl font-semibold mt-2">
+                    {{
+                        metrics.counters.get('returns_created_total', [])
+                        | sum(attribute='value')
+                        if metrics.counters.get('returns_created_total') else 0
+                    }}
+                </p>
+            </div>
+            <div class="bg-white p-4 rounded-xl shadow">
+                <p class="text-sm text-gray-500 uppercase">Refund Success Rate</p>
+                {% set completed = metrics.counters.get('refunds_completed_total', []) | sum(attribute='value') if metrics.counters.get('refunds_completed_total') else 0 %}
+                {% set failed = metrics.counters.get('refunds_failed_total', []) | sum(attribute='value') if metrics.counters.get('refunds_failed_total') else 0 %}
+                {% set total = completed + failed %}
+                <p class="text-2xl font-semibold mt-2">
+                    {% if total > 0 %}
+                        {{ '%.0f' | format((completed / total) * 100) }}%
+                    {% else %}
+                        N/A
+                    {% endif %}
+                </p>
+            </div>
+        </section>
+
+        <section class="bg-white p-6 rounded-xl shadow space-y-4">
+            <div class="flex items-center justify-between">
+                <div>
+                    <h2 class="text-xl font-semibold">HTTP Metrics</h2>
+                    <p class="text-sm text-gray-500">Latency and throughput per endpoint.</p>
+                </div>
+                <a href="{{ url_for('admin_metrics') }}" class="text-blue-500 hover:underline text-sm">Download JSON</a>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="min-w-full text-sm">
+                    <thead class="bg-gray-50 text-gray-500 uppercase text-xs">
+                        <tr>
+                            <th class="px-3 py-2 text-left">Endpoint</th>
+                            <th class="px-3 py-2">Method</th>
+                            <th class="px-3 py-2">Status</th>
+                            <th class="px-3 py-2">Count</th>
+                            <th class="px-3 py-2">Avg ms</th>
+                            <th class="px-3 py-2">Max ms</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y">
+                        {% for histogram in metrics.histograms.get('http_request_latency_ms', []) %}
+                        <tr>
+                            <td class="px-3 py-2">{{ histogram.labels.get('endpoint', 'n/a') }}</td>
+                            <td class="px-3 py-2 text-center">{{ histogram.labels.get('method', 'n/a') }}</td>
+                            <td class="px-3 py-2 text-center">{{ histogram.labels.get('status', 'n/a') }}</td>
+                            <td class="px-3 py-2 text-center">{{ histogram.stats.count }}</td>
+                            <td class="px-3 py-2 text-center">{{ '%.2f'|format(histogram.stats.avg) }}</td>
+                            <td class="px-3 py-2 text-center">{{ '%.2f'|format(histogram.stats.max if histogram.stats.max else 0) }}</td>
+                        </tr>
+                        {% else %}
+                        <tr>
+                            <td class="px-3 py-4 text-center text-gray-500" colspan="6">No request metrics captured yet.</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <section class="bg-white p-6 rounded-xl shadow space-y-4">
+            <h2 class="text-xl font-semibold">Recent Events</h2>
+            <div class="space-y-2">
+                {% for event in metrics.events|reverse %}
+                <div class="border rounded-lg p-3 bg-gray-50">
+                    <p class="font-semibold">{{ event.name }}</p>
+                    <p class="text-xs text-gray-500">at {{ event.timestamp | float | round(2) }}</p>
+                    <pre class="mt-2 text-xs bg-white rounded p-2 overflow-auto">{{ event.payload | tojson(indent=2) }}</pre>
+                </div>
+                {% else %}
+                <p class="text-gray-500 text-sm">No events recorded yet.</p>
+                {% endfor %}
+            </div>
+        </section>
+    </main>
+</body>
+</html>
+

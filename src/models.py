@@ -1,11 +1,64 @@
 # src/models.py
-from sqlalchemy import Column, Integer, String, Numeric, DateTime, ForeignKey, Boolean
-from sqlalchemy.orm import relationship
+from enum import Enum
 from datetime import datetime, timezone
+
+from sqlalchemy import (
+    Column,
+    Integer,
+    String,
+    Numeric,
+    DateTime,
+    ForeignKey,
+    Boolean,
+    Text,
+    Enum as SAEnum,
+)
+from sqlalchemy.orm import relationship
 
 # Use a single, shared Base for all models
 # This ensures all models use the same SQLAlchemy metadata, preventing conflicts.
 from src.database import Base
+
+
+class ReturnRequestStatus(str, Enum):
+    PENDING_CUSTOMER_INFO = "PENDING_CUSTOMER_INFO"
+    PENDING_AUTHORIZATION = "PENDING_AUTHORIZATION"
+    AUTHORIZED = "AUTHORIZED"
+    IN_TRANSIT = "IN_TRANSIT"
+    RECEIVED = "RECEIVED"
+    UNDER_INSPECTION = "UNDER_INSPECTION"
+    APPROVED = "APPROVED"
+    REJECTED = "REJECTED"
+    REFUNDED = "REFUNDED"
+    CANCELLED = "CANCELLED"
+
+
+class ReturnReason(str, Enum):
+    DAMAGED = "DAMAGED"
+    WRONG_ITEM = "WRONG_ITEM"
+    NOT_AS_DESCRIBED = "NOT_AS_DESCRIBED"
+    OTHER = "OTHER"
+
+
+class InspectionResult(str, Enum):
+    PENDING = "PENDING"
+    APPROVED = "APPROVED"
+    PARTIALLY_APPROVED = "PARTIALLY_APPROVED"
+    REJECTED = "REJECTED"
+
+
+class RefundStatus(str, Enum):
+    PENDING = "PENDING"
+    PROCESSING = "PROCESSING"
+    COMPLETED = "COMPLETED"
+    FAILED = "FAILED"
+
+
+class RefundMethod(str, Enum):
+    CARD = "CARD"
+    CASH = "CASH"
+    STORE_CREDIT = "STORE_CREDIT"
+    ORIGINAL_METHOD = "ORIGINAL_METHOD"
 
 class User(Base):
     __tablename__ = 'User'
@@ -15,6 +68,7 @@ class User(Base):
     email = Column(String(255), unique=True, nullable=False)
     _created_at = Column('created_at', DateTime, default=lambda: datetime.now(timezone.utc))
     sales = relationship("Sale", back_populates="user")
+    return_requests = relationship("ReturnRequest", back_populates="customer")
     
     @property
     def passwordHash(self):
@@ -83,6 +137,7 @@ class Sale(Base):
     user = relationship("User", back_populates="sales")
     items = relationship("SaleItem", back_populates="sale")
     payments = relationship("Payment", back_populates="sale")
+    return_requests = relationship("ReturnRequest", back_populates="sale")
     
     @property
     def sale_date(self):
@@ -122,6 +177,7 @@ class SaleItem(Base):
     _subtotal = Column('subtotal', Numeric(10, 2), nullable=False)
     sale = relationship("Sale", back_populates="items")
     product = relationship("Product")
+    return_items = relationship("ReturnItem", back_populates="sale_item")
     
     @property
     def original_unit_price(self):
@@ -181,6 +237,7 @@ class Payment(Base):
     _payment_type = Column('payment_type', String(50))
     type = Column(String(50))  # This line is required for polymorphic identity
     sale = relationship("Sale", back_populates="payments")
+    refunds = relationship("Refund", back_populates="payment")
     __mapper_args__ = {
         'polymorphic_identity': 'payment',
         'polymorphic_on': type
@@ -270,6 +327,158 @@ class Card(Payment):
         if "1111" in self._card_number:
             return False, "Card Declined by issuer"
         return True, "Approved"
+
+
+class ReturnRequest(Base):
+    __tablename__ = 'ReturnRequest'
+
+    returnRequestID = Column(Integer, primary_key=True, autoincrement=True)
+    saleID = Column(Integer, ForeignKey('Sale.saleID'), nullable=False)
+    customerID = Column(Integer, ForeignKey('User.userID'), nullable=False)
+    status = Column(
+        SAEnum(ReturnRequestStatus, name="return_request_status", native_enum=False, validate_strings=True),
+        default=ReturnRequestStatus.PENDING_AUTHORIZATION,
+        nullable=False,
+    )
+    reason = Column(
+        SAEnum(ReturnReason, name="return_reason", native_enum=False, validate_strings=True),
+        nullable=False,
+    )
+    details = Column(Text)
+    photos_url = Column(String(512))
+    rma_number = Column(String(50), unique=True)
+    decision_notes = Column(Text)
+    policy_window_days = Column(Integer, default=30)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+
+    sale = relationship("Sale", back_populates="return_requests")
+    customer = relationship("User", back_populates="return_requests")
+    return_items = relationship("ReturnItem", back_populates="return_request", cascade="all, delete-orphan")
+    shipment = relationship("ReturnShipment", uselist=False, back_populates="return_request", cascade="all, delete-orphan")
+    inspection = relationship("Inspection", uselist=False, back_populates="return_request", cascade="all, delete-orphan")
+    refund = relationship("Refund", uselist=False, back_populates="return_request", cascade="all, delete-orphan")
+
+    _VALID_TRANSITIONS = {
+        ReturnRequestStatus.PENDING_CUSTOMER_INFO: {ReturnRequestStatus.PENDING_AUTHORIZATION, ReturnRequestStatus.CANCELLED},
+        ReturnRequestStatus.PENDING_AUTHORIZATION: {ReturnRequestStatus.AUTHORIZED, ReturnRequestStatus.REJECTED, ReturnRequestStatus.CANCELLED},
+        ReturnRequestStatus.AUTHORIZED: {ReturnRequestStatus.IN_TRANSIT, ReturnRequestStatus.REJECTED},
+        ReturnRequestStatus.IN_TRANSIT: {ReturnRequestStatus.RECEIVED},
+        ReturnRequestStatus.RECEIVED: {ReturnRequestStatus.UNDER_INSPECTION},
+        ReturnRequestStatus.UNDER_INSPECTION: {ReturnRequestStatus.APPROVED, ReturnRequestStatus.REJECTED},
+        ReturnRequestStatus.APPROVED: {ReturnRequestStatus.REFUNDED},
+        ReturnRequestStatus.REJECTED: {ReturnRequestStatus.CANCELLED},
+    }
+
+    def can_transition(self, new_status: ReturnRequestStatus) -> bool:
+        allowed = self._VALID_TRANSITIONS.get(ReturnRequestStatus(self.status), set())
+        return new_status in allowed
+
+    def transition_to(self, new_status: ReturnRequestStatus) -> None:
+        if not self.can_transition(new_status):
+            raise ValueError(f"Invalid return status transition from {self.status} to {new_status}")
+        self.status = new_status
+
+    def calculate_requested_amount(self) -> float:
+        total = 0.0
+        for item in self.return_items:
+            total += item.requested_refund_amount
+        return round(total, 2)
+
+    def is_within_policy(self, return_window_days: int) -> bool:
+        if not self.sale or not self.sale.sale_date:
+            return False
+        delta = datetime.now(timezone.utc) - self.sale.sale_date
+        return delta.days <= return_window_days
+
+
+class ReturnItem(Base):
+    __tablename__ = 'ReturnItem'
+
+    returnItemID = Column(Integer, primary_key=True, autoincrement=True)
+    returnRequestID = Column(Integer, ForeignKey('ReturnRequest.returnRequestID'), nullable=False)
+    saleItemID = Column(Integer, ForeignKey('SaleItem.saleItemID'), nullable=False)
+    quantity = Column(Integer, nullable=False)
+    condition_report = Column(Text)
+    restocking_fee = Column(Numeric(10, 2), default=0.0)
+
+    return_request = relationship("ReturnRequest", back_populates="return_items")
+    sale_item = relationship("SaleItem", back_populates="return_items")
+
+    @property
+    def requested_refund_amount(self) -> float:
+        if not self.sale_item:
+            return 0.0
+        unit_price = float(self.sale_item.final_unit_price)
+        requested_qty = min(self.quantity, self.sale_item.quantity)
+        return round(max(unit_price * requested_qty - float(self.restocking_fee or 0), 0), 2)
+
+
+class ReturnShipment(Base):
+    __tablename__ = 'ReturnShipment'
+
+    shipmentID = Column(Integer, primary_key=True, autoincrement=True)
+    returnRequestID = Column(Integer, ForeignKey('ReturnRequest.returnRequestID'), nullable=False)
+    carrier = Column(String(120))
+    tracking_number = Column(String(120))
+    shipped_at = Column(DateTime)
+    received_at = Column(DateTime)
+    notes = Column(Text)
+
+    return_request = relationship("ReturnRequest", back_populates="shipment")
+
+
+class Inspection(Base):
+    __tablename__ = 'Inspection'
+
+    inspectionID = Column(Integer, primary_key=True, autoincrement=True)
+    returnRequestID = Column(Integer, ForeignKey('ReturnRequest.returnRequestID'), nullable=False)
+    inspected_by = Column(String(120))
+    inspected_at = Column(DateTime)
+    result = Column(
+        SAEnum(InspectionResult, name="inspection_result", native_enum=False, validate_strings=True),
+        default=InspectionResult.PENDING,
+        nullable=False,
+    )
+    notes = Column(Text)
+
+    return_request = relationship("ReturnRequest", back_populates="inspection")
+
+
+class Refund(Base):
+    __tablename__ = 'Refund'
+
+    refundID = Column(Integer, primary_key=True, autoincrement=True)
+    returnRequestID = Column(Integer, ForeignKey('ReturnRequest.returnRequestID'), nullable=False)
+    paymentID = Column(Integer, ForeignKey('Payment.paymentID'), nullable=False)
+    amount = Column(Numeric(10, 2), nullable=False)
+    method = Column(
+        SAEnum(RefundMethod, name="refund_method", native_enum=False, validate_strings=True),
+        nullable=False,
+    )
+    status = Column(
+        SAEnum(RefundStatus, name="refund_status", native_enum=False, validate_strings=True),
+        default=RefundStatus.PENDING,
+        nullable=False,
+    )
+    failure_reason = Column(String(255))
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    processed_at = Column(DateTime)
+    external_reference = Column(String(120))
+
+    return_request = relationship("ReturnRequest", back_populates="refund")
+    payment = relationship("Payment", back_populates="refunds")
+
+    def mark_completed(self, reference: str | None = None) -> None:
+        self.status = RefundStatus.COMPLETED
+        self.processed_at = datetime.now(timezone.utc)
+        if reference:
+            self.external_reference = reference
+
+    def mark_failed(self, reason: str) -> None:
+        self.status = RefundStatus.FAILED
+        self.failure_reason = reason
+        self.processed_at = datetime.now(timezone.utc)
 
 class FailedPaymentLog(Base):
     __tablename__ = 'FailedPaymentLog'

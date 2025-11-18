@@ -1,3 +1,44 @@
+# Checkpoint 3 Runbook
+
+This runbook now includes the Checkpoint 3 deployment + observability workflow in addition to the original quality tactic test harness.
+
+## CP3 Demo Script (Docker → Dashboard → Returns)
+
+1. **Prep environment**
+   ```bash
+   cp env.example .env
+   # (Optional) force refunds to fail for the availability scenario
+   echo PAYMENT_REFUND_FAILURE_PROBABILITY=1.0 >> .env
+   ```
+2. **Start containers**
+   ```bash
+   docker compose up --build
+   ```
+   - Postgres seeds `db/init.sql`, the returns migration, and the demo sale (`RMA-CP3-DEMO-001`).
+   - `web` waits for DB, runs Gunicorn on `http://localhost:5000`.
+3. **Login & explore**
+   - Navigate to `/login`, sign in as user ID 1 (admin) or create a new account.
+   - Go to `/returns` to view/submit RMAs.
+   - Visit `/admin/dashboard` to verify health, counters, and latency tables.
+4. **Availability scenario (Payment circuit breaker)**
+   - Ensure `.env` forces failures (step 1) or retry refunds until a failure occurs.
+   - Approve the seeded RMA via `/admin/returns`, trigger refund; observe structured log and dashboard counters (`refunds_failed_total` increments).
+5. **Performance scenario (Flash sale throttling)**
+   - Use a script or browser to fire multiple `/checkout` submissions quickly (10+ requests/sec). Example:
+     ```python
+     import requests
+     for _ in range(20):
+         requests.post("http://localhost:5000/checkout", data={"payment_method": "Cash"})
+     ```
+   - Observe 429 responses, the throttling banner on the UI, and `http_requests_total` counters showing the spike.
+6. **Shutdown**
+   ```bash
+   docker compose down
+   # optional: docker compose down -v  # to reset database volume
+   ```
+
+> Need raw artifacts? Use `docker compose logs web --tail=200` for structured logs and `curl -H "Cookie: ..." http://localhost:5000/admin/metrics` for JSON snapshots.
+
 # Checkpoint 2: Quality Tactics Test Suite
 
 This comprehensive test suite demonstrates all 14+ quality tactics and patterns implemented for Checkpoint 2 of the Retail Management System.

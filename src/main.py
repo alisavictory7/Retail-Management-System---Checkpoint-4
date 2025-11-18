@@ -1,26 +1,53 @@
 # src/main.py
-from flask import Flask, render_template, request, redirect, url_for, session, jsonify
+import logging
+import random
+import time
+from datetime import datetime, timezone
+from uuid import uuid4
+
+from flask import (
+    Flask,
+    render_template,
+    request,
+    redirect,
+    url_for,
+    session,
+    jsonify,
+    g,
+    abort,
+)
+from sqlalchemy import not_, desc
+from werkzeug.security import generate_password_hash, check_password_hash
+
+from src.config import Config
 from src.database import get_db, close_db, engine
 from src.models import Product, User, Sale, SaleItem, Payment, Cash, Card, FailedPaymentLog, Base
-from werkzeug.security import generate_password_hash, check_password_hash
-import random
-from datetime import datetime, timezone
-from sqlalchemy import not_, desc
-
-# Import quality tactics manager
 from src.tactics.manager import QualityTacticsManager
+from src.blueprints.returns import returns_bp
+from src.observability import (
+    configure_logging,
+    increment_counter,
+    observe_latency,
+    get_metrics_snapshot,
+    check_database_health,
+)
+from src.observability.logging_config import ensure_request_id
 
 app = Flask(__name__, template_folder='../templates', static_folder='../static')
-app.config['SECRET_KEY'] = 'a_very_secret_key'
+Config.configure_app(app)
+configure_logging(app)
+app.register_blueprint(returns_bp)
+
+logger = logging.getLogger(__name__)
 
 # Initialize database tables
 def init_database():
     """Initialize database tables"""
     try:
         Base.metadata.create_all(bind=engine)
-        print("Database tables initialized successfully")
+        logger.info("Database tables initialized successfully")
     except Exception as e:
-        print(f"Error initializing database: {e}")
+        logger.exception("Error initializing database: %s", e)
 
 # Initialize database on startup
 init_database()
@@ -36,6 +63,48 @@ def get_quality_manager():
         'monitoring': {'metrics_interval': 60},
         'usability': {}
     })
+
+def is_admin_user() -> bool:
+    return bool(session.get('is_admin')) or session.get('user_id') == 1
+
+@app.context_processor
+def inject_nav_context():
+    user = None
+    if 'user_id' in session:
+        db = get_db()
+        user = db.query(User).filter_by(userID=session['user_id']).first()
+    return {
+        "current_user": user,
+        "is_admin": is_admin_user(),
+    }
+
+@app.before_request
+def before_request_logging():
+    g.request_started_at = time.perf_counter()
+    g.request_id = ensure_request_id()
+    increment_counter(
+        "http_requests_total",
+        labels={
+            "method": request.method,
+            "endpoint": request.endpoint or request.path,
+        },
+    )
+
+@app.after_request
+def after_request_logging(response):
+    started = getattr(g, 'request_started_at', None)
+    if started is not None:
+        duration_ms = (time.perf_counter() - started) * 1000
+        observe_latency(
+            "http_request_latency_ms",
+            duration_ms,
+            labels={
+                "method": request.method,
+                "endpoint": request.endpoint or request.path,
+                "status": str(response.status_code),
+            },
+        )
+    return response
 
 @app.teardown_appcontext
 def teardown_db(exception):
@@ -284,6 +353,7 @@ def login():
         user = db.query(User).filter_by(username=username).first()
         if user and check_password_hash(user.passwordHash, password):
             session['user_id'] = user.userID
+            session['is_admin'] = bool(user.userID == 1 or user.username.lower() == 'admin')
             # Preserve existing cart or initialize empty cart if none exists
             if 'cart' not in session:
                 session['cart'] = {'items': [], 'grand_total': 0.0}
@@ -763,6 +833,32 @@ def system_health():
         return jsonify(health)
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
+@app.route('/health', methods=['GET'])
+def health():
+    db_status = check_database_health()
+    overall = "UP" if db_status.get("status") == "UP" else "DEGRADED"
+    status_code = 200 if overall == "UP" else 503
+    return jsonify({
+        "status": overall,
+        "components": {
+            "database": db_status
+        }
+    }), status_code
+
+@app.route('/admin/metrics', methods=['GET'])
+def admin_metrics():
+    if not is_admin_user():
+        abort(403)
+    return jsonify(get_metrics_snapshot())
+
+@app.route('/admin/dashboard', methods=['GET'])
+def admin_dashboard():
+    if not is_admin_user():
+        abort(403)
+    metrics = get_metrics_snapshot()
+    db_status = check_database_health()
+    return render_template('admin_dashboard.html', metrics=metrics, db_status=db_status)
 
 @app.route('/api/features/<feature_name>/toggle', methods=['POST'])
 def toggle_feature(feature_name):

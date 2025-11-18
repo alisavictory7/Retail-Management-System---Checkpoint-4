@@ -1,0 +1,22 @@
+<nav class="bg-white shadow-md">
+    <div class="container mx-auto px-4 py-3 flex flex-wrap items-center justify-between gap-4">
+        <a href="{{ url_for('index') }}" class="text-xl font-bold text-gray-900">Retail Management System</a>
+        <div class="flex items-center flex-wrap gap-4 text-sm">
+            {% if current_user %}
+                <span class="text-gray-600">Welcome, {{ current_user.username }}!</span>
+                <a href="{{ url_for('index') }}" class="text-blue-500 hover:underline">Storefront</a>
+                <a href="{{ url_for('returns.view_returns') }}" class="text-blue-500 hover:underline">Returns</a>
+                {% if is_admin %}
+                <a href="{{ url_for('admin_dashboard') }}" class="text-blue-500 hover:underline">Dashboard</a>
+                <a href="{{ url_for('returns.admin_returns_dashboard') }}" class="text-blue-500 hover:underline">Returns Admin</a>
+                {% endif %}
+                <a href="{{ url_for('logout') }}" class="text-blue-500 hover:underline">Logout</a>
+            {% else %}
+                <a href="{{ url_for('index') }}" class="text-blue-500 hover:underline">Storefront</a>
+                <a href="{{ url_for('login') }}" class="text-blue-500 hover:underline">Login</a>
+                <a href="{{ url_for('register') }}" class="text-blue-500 hover:underline">Register</a>
+            {% endif %}
+        </div>
+    </div>
+</nav>
+

@@ -9,6 +9,11 @@ DROP TABLE IF EXISTS "PartnerAPIKey";
 DROP TABLE IF EXISTS "MessageQueue";
 DROP TABLE IF EXISTS "TestRecord";
 DROP TABLE IF EXISTS "SystemMetrics";
+DROP TABLE IF EXISTS "ReturnShipment";
+DROP TABLE IF EXISTS "Inspection";
+DROP TABLE IF EXISTS "Refund";
+DROP TABLE IF EXISTS "ReturnItem";
+DROP TABLE IF EXISTS "ReturnRequest";
 DROP TABLE IF EXISTS "FlashSaleReservation";
 DROP TABLE IF EXISTS "FlashSale";
 DROP TABLE IF EXISTS "PartnerProduct";
@@ -88,6 +93,74 @@ CREATE TABLE "FailedPaymentLog" (
     "reason" VARCHAR(255)
 );
 
+-- ==============================================
+-- CHECKPOINT 3: RETURNS & REFUNDS TABLES
+-- ==============================================
+
+CREATE TABLE "ReturnRequest" (
+    "returnRequestID" SERIAL PRIMARY KEY,
+    "saleID" INTEGER NOT NULL REFERENCES "Sale"("saleID"),
+    "customerID" INTEGER NOT NULL REFERENCES "User"("userID"),
+    "status" VARCHAR(40) NOT NULL DEFAULT 'PENDING_AUTHORIZATION',
+    "reason" VARCHAR(40) NOT NULL,
+    "details" TEXT,
+    "photos_url" VARCHAR(512),
+    "rma_number" VARCHAR(50) UNIQUE,
+    "decision_notes" TEXT,
+    "policy_window_days" INTEGER DEFAULT 30,
+    "created_at" TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    "updated_at" TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    CONSTRAINT "chk_return_status" CHECK ("status" IN (
+        'PENDING_CUSTOMER_INFO','PENDING_AUTHORIZATION','AUTHORIZED','IN_TRANSIT',
+        'RECEIVED','UNDER_INSPECTION','APPROVED','REJECTED','REFUNDED','CANCELLED'
+    )),
+    CONSTRAINT "chk_return_reason" CHECK ("reason" IN ('DAMAGED','WRONG_ITEM','NOT_AS_DESCRIBED','OTHER'))
+);
+
+CREATE TABLE "ReturnItem" (
+    "returnItemID" SERIAL PRIMARY KEY,
+    "returnRequestID" INTEGER NOT NULL REFERENCES "ReturnRequest"("returnRequestID") ON DELETE CASCADE,
+    "saleItemID" INTEGER NOT NULL REFERENCES "SaleItem"("saleItemID"),
+    "quantity" INTEGER NOT NULL,
+    "condition_report" TEXT,
+    "restocking_fee" DECIMAL(10, 2) DEFAULT 0.0
+);
+
+CREATE TABLE "ReturnShipment" (
+    "shipmentID" SERIAL PRIMARY KEY,
+    "returnRequestID" INTEGER NOT NULL REFERENCES "ReturnRequest"("returnRequestID") ON DELETE CASCADE,
+    "carrier" VARCHAR(120),
+    "tracking_number" VARCHAR(120),
+    "shipped_at" TIMESTAMP WITH TIME ZONE,
+    "received_at" TIMESTAMP WITH TIME ZONE,
+    "notes" TEXT
+);
+
+CREATE TABLE "Inspection" (
+    "inspectionID" SERIAL PRIMARY KEY,
+    "returnRequestID" INTEGER NOT NULL REFERENCES "ReturnRequest"("returnRequestID") ON DELETE CASCADE,
+    "inspected_by" VARCHAR(120),
+    "inspected_at" TIMESTAMP WITH TIME ZONE,
+    "result" VARCHAR(40) NOT NULL DEFAULT 'PENDING',
+    "notes" TEXT,
+    CONSTRAINT "chk_inspection_result" CHECK ("result" IN ('PENDING','APPROVED','PARTIALLY_APPROVED','REJECTED'))
+);
+
+CREATE TABLE "Refund" (
+    "refundID" SERIAL PRIMARY KEY,
+    "returnRequestID" INTEGER NOT NULL REFERENCES "ReturnRequest"("returnRequestID") ON DELETE CASCADE,
+    "paymentID" INTEGER NOT NULL REFERENCES "Payment"("paymentID"),
+    "amount" DECIMAL(10, 2) NOT NULL,
+    "method" VARCHAR(40) NOT NULL,
+    "status" VARCHAR(40) NOT NULL DEFAULT 'PENDING',
+    "failure_reason" VARCHAR(255),
+    "created_at" TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    "processed_at" TIMESTAMP WITH TIME ZONE,
+    "external_reference" VARCHAR(120),
+    CONSTRAINT "chk_refund_method" CHECK ("method" IN ('CARD','CASH','STORE_CREDIT','ORIGINAL_METHOD')),
+    CONSTRAINT "chk_refund_status" CHECK ("status" IN ('PENDING','PROCESSING','COMPLETED','FAILED'))
+);
+
 -- Insert sample data with new attributes
 INSERT INTO "Product" ("name", "description", "price", "stock", "shipping_weight", "discount_percent", "country_of_origin", "requires_shipping") VALUES
 ('Laptop', 'A high-performance laptop.', 1200.00, 40, 2.5, 10.00, 'China', TRUE),
@@ -101,6 +174,51 @@ INSERT INTO "User" ("username", "passwordHash", "email") VALUES
 ('jane_smith', 'pbkdf2:sha256:600000$lY1E6n8k3v9a2Z3j$c8b7c6a5b4d3e2f1a0b9c8d7e6f5a4b3c2d1e0f9a8b7c6d5e4f3a2b1c0d9e8f7', 'jane.smith@example.com'),
 ('alice_jones', 'pbkdf2:sha256:600000$lY1E6n8k3v9a2Z3j$c8b7c6a5b4d3e2f1a0b9c8d7e6f5a4b3c2d1e0f9a8b7c6d5e4f3a2b1c0d9e8f7', 'alice.jones@example.com'),
 ('bob_brown', 'pbkdf2:sha256:600000$lY1E6n8k3v9a2Z3j$c8b7c6a5b4d3e2f1a0b9c8d7e6f5a4b3c2d1e0f9a8b7c6d5e4f3a2b1c0d9e8f7', 'bob.brown@example.com');
+
+-- Demo sale + return workflow for Checkpoint 3 storytelling
+WITH demo_sale AS (
+    INSERT INTO "Sale" ("userID", "sale_date", "totalAmount", "status")
+    VALUES (1, NOW() - INTERVAL '5 days', 1110.00, 'completed')
+    RETURNING "saleID"
+),
+demo_item AS (
+    INSERT INTO "SaleItem" ("saleID", "productID", "quantity", "original_unit_price", "discount_applied", "final_unit_price", "shipping_fee_applied", "import_duty_applied", "subtotal")
+    SELECT "saleID", 1, 1, 1200.00, 120.00, 1080.00, 20.00, 10.00, 1110.00
+    FROM demo_sale
+    RETURNING "saleItemID", "saleID"
+),
+demo_payment AS (
+    INSERT INTO "Payment" ("saleID", "payment_date", "amount", "status", "payment_type", "card_number", "card_type", "card_exp_date", "type")
+    SELECT "saleID", NOW() - INTERVAL '5 days', 1110.00, 'completed', 'card', '4242424242424242', 'VISA', '12/2030', 'card'
+    FROM demo_sale
+    RETURNING "paymentID", "saleID"
+),
+demo_return AS (
+    INSERT INTO "ReturnRequest" ("saleID", "customerID", "status", "reason", "details", "photos_url", "rma_number", "decision_notes", "policy_window_days", "created_at", "updated_at")
+    SELECT "saleID", 1, 'AUTHORIZED', 'DAMAGED', 'Screen flickers intermittently', 'https://example.com/photos/rma-demo', 'RMA-CP3-DEMO-001', NULL, 30, NOW() - INTERVAL '2 days', NOW() - INTERVAL '2 days'
+    FROM demo_sale
+    RETURNING "returnRequestID", "saleID"
+),
+demo_return_item AS (
+    INSERT INTO "ReturnItem" ("returnRequestID", "saleItemID", "quantity", "condition_report", "restocking_fee")
+    SELECT demo_return."returnRequestID", demo_item."saleItemID", 1, 'Visual inspection pending', 0.00
+    FROM demo_return
+    JOIN demo_item ON demo_item."saleID" = demo_return."saleID"
+),
+demo_shipment AS (
+    INSERT INTO "ReturnShipment" ("returnRequestID", "carrier", "tracking_number", "shipped_at", "received_at", "notes")
+    SELECT "returnRequestID", 'DHL', 'RMA123456789', NOW() - INTERVAL '1 day', NULL, 'Customer provided drop-off receipt'
+    FROM demo_return
+),
+demo_inspection AS (
+    INSERT INTO "Inspection" ("returnRequestID", "inspected_by", "inspected_at", "result", "notes")
+    SELECT "returnRequestID", NULL, NULL, 'PENDING', 'Awaiting warehouse processing'
+    FROM demo_return
+)
+INSERT INTO "Refund" ("returnRequestID", "paymentID", "amount", "method", "status", "failure_reason", "created_at", "processed_at", "external_reference")
+SELECT demo_return."returnRequestID", demo_payment."paymentID", 1110.00, 'CARD', 'PENDING', NULL, NOW() - INTERVAL '1 day', NULL, 'REF-CP3-DEMO'
+FROM demo_return
+JOIN demo_payment ON demo_payment."saleID" = demo_return."saleID";
 
 ALTER TABLE "Payment" ALTER COLUMN "payment_type" DROP NOT NULL;
 
@@ -286,6 +404,12 @@ CREATE INDEX "idx_messagequeue_topic_status" ON "MessageQueue"("topic", "status"
 CREATE INDEX "idx_auditlog_timestamp" ON "AuditLog"("timestamp");
 CREATE INDEX "idx_auditlog_entity" ON "AuditLog"("entity_type", "entity_id");
 CREATE INDEX "idx_systemmetrics_name_timestamp" ON "SystemMetrics"("metric_name", "timestamp");
+
+-- Returns & Refunds indexes
+CREATE INDEX "idx_returnrequest_status" ON "ReturnRequest"("status", "created_at");
+CREATE INDEX "idx_returnrequest_customer" ON "ReturnRequest"("customerID", "status");
+CREATE INDEX "idx_returnitem_request" ON "ReturnItem"("returnRequestID");
+CREATE INDEX "idx_refund_status" ON "Refund"("status");
 
 -- ==============================================
 -- SAMPLE DATA FOR TESTING

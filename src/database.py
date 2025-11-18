@@ -2,26 +2,23 @@
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, declarative_base
 from flask import g
-import os
-from dotenv import load_dotenv
 
-load_dotenv() # Load environment variables from .env file
+from src.config import Config
 
-DB_USERNAME = os.getenv('DB_USERNAME')
-DB_PASSWORD = os.getenv('DB_PASSWORD')
-DB_HOST = os.getenv('DB_HOST')
-DB_PORT = os.getenv('DB_PORT')
-DB_NAME = os.getenv('DB_NAME')
+engine_kwargs = {
+    "echo": Config.SQL_ECHO,
+    "future": True,
+    "pool_pre_ping": True,
+}
 
-DATABASE_URL = f"postgresql://{DB_USERNAME}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
+if not Config.DATABASE_URL.startswith("sqlite"):
+    engine_kwargs["pool_size"] = Config.DB_POOL_SIZE
+    engine_kwargs["max_overflow"] = Config.DB_MAX_OVERFLOW
 
-engine = create_engine(DATABASE_URL)
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+engine = create_engine(Config.DATABASE_URL, **engine_kwargs)
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine, future=True)
 
-# --- CHANGE HIGHLIGHT: Updated to modern SQLAlchemy 2.0 syntax ---
-# The import for declarative_base has been changed, and the function is called directly.
 Base = declarative_base()
-# --- END CHANGE ---
 
 def get_db():
     if 'db' not in g:
