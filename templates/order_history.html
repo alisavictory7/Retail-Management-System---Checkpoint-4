@@ -23,7 +23,27 @@
                 </svg>
                 Filter & Search
             </h2>
-            <form method="GET" action="{{ url_for('order_history') }}" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+            <!-- Date Validation Error Message -->
+            {% if date_error %}
+            <div class="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg flex items-center gap-3">
+                <svg class="w-5 h-5 text-red-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                </svg>
+                <span class="text-red-700">{{ date_error }}</span>
+            </div>
+            {% endif %}
+            
+            <!-- Client-side Date Validation Error -->
+            <div id="date-validation-error" class="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg hidden">
+                <div class="flex items-center gap-3">
+                    <svg class="w-5 h-5 text-red-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                    </svg>
+                    <span id="date-error-message" class="text-red-700"></span>
+                </div>
+            </div>
+
+            <form method="GET" action="{{ url_for('order_history') }}" id="filter-form" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
                 <!-- Status Filter -->
                 <div>
                     <label for="status" class="block text-sm font-medium text-gray-700 mb-1">Status</label>
@@ -40,6 +60,7 @@
                 <div>
                     <label for="start_date" class="block text-sm font-medium text-gray-700 mb-1">From Date</label>
                     <input type="date" id="start_date" name="start_date" value="{{ current_filters.start_date }}"
+                           max="{{ today_date }}"
                            class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
                 </div>
 
@@ -60,7 +81,7 @@
 
                 <!-- Buttons -->
                 <div class="flex items-end gap-2">
-                    <button type="submit" class="flex-1 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition font-medium">
+                    <button type="submit" id="submit-btn" class="flex-1 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition font-medium">
                         Apply Filters
                     </button>
                     <a href="{{ url_for('order_history') }}" class="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition">
@@ -69,6 +90,63 @@
                 </div>
             </form>
         </div>
+        
+        <!-- Client-side Date Validation Script -->
+        <script>
+            (function() {
+                const startDateInput = document.getElementById('start_date');
+                const endDateInput = document.getElementById('end_date');
+                const errorDiv = document.getElementById('date-validation-error');
+                const errorMessage = document.getElementById('date-error-message');
+                const submitBtn = document.getElementById('submit-btn');
+                const form = document.getElementById('filter-form');
+                
+                function validateDates() {
+                    const startDate = startDateInput.value;
+                    const endDate = endDateInput.value;
+                    const today = new Date().toISOString().split('T')[0];
+                    let error = null;
+                    
+                    // Check if end date is before start date
+                    if (startDate && endDate && endDate < startDate) {
+                        error = "Invalid date range: 'To Date' must be on or after 'From Date'.";
+                    }
+                    // Check if start date is in the future
+                    else if (startDate && startDate > today) {
+                        error = "Invalid date: 'From Date' cannot be in the future.";
+                    }
+                    
+                    if (error) {
+                        errorDiv.classList.remove('hidden');
+                        errorMessage.textContent = error;
+                        submitBtn.classList.add('opacity-50', 'cursor-not-allowed');
+                        startDateInput.classList.add('border-red-300');
+                        endDateInput.classList.add('border-red-300');
+                        return false;
+                    } else {
+                        errorDiv.classList.add('hidden');
+                        submitBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+                        startDateInput.classList.remove('border-red-300');
+                        endDateInput.classList.remove('border-red-300');
+                        return true;
+                    }
+                }
+                
+                // Validate on input change
+                startDateInput.addEventListener('change', validateDates);
+                endDateInput.addEventListener('change', validateDates);
+                
+                // Validate on form submit
+                form.addEventListener('submit', function(e) {
+                    if (!validateDates()) {
+                        e.preventDefault();
+                    }
+                });
+                
+                // Initial validation
+                validateDates();
+            })();
+        </script>
 
         <!-- Results Summary -->
         <div class="flex items-center justify-between mb-4">
@@ -143,7 +221,7 @@
                         <!-- Order Items -->
                         <div class="border-t pt-4">
                             <div class="grid gap-3">
-                                {% for item in order.items %}
+                                {% for item in order['items'] %}
                                 <div class="flex items-center justify-between py-2 px-3 bg-gray-50 rounded-lg">
                                     <div class="flex items-center gap-3">
                                         <div class="w-10 h-10 bg-gray-200 rounded-lg flex items-center justify-center">
@@ -246,7 +324,7 @@
                     <div class="mt-4 text-sm text-gray-600">
                         <span>Reason: {{ ret.reason|replace('_', ' ')|title }}</span>
                         <span class="mx-2">•</span>
-                        <span>Items: {{ ret.items|length }}</span>
+                        <span>Items: {{ ret['items']|length }}</span>
                     </div>
                 </div>
                 {% endfor %}

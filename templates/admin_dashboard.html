@@ -3,322 +3,404 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Admin Dashboard</title>
+    <title>Admin Dashboard - Retail Management System</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+        body { font-family: 'Inter', sans-serif; }
+        .card-hover { transition: all 0.3s ease; }
+        .card-hover:hover { transform: translateY(-4px); box-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.1); }
+        .gradient-border { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
+        .stat-card { backdrop-filter: blur(10px); }
+    </style>
 </head>
-<body class="bg-slate-100 text-gray-900 min-h-screen">
+<body class="bg-gradient-to-br from-slate-50 via-gray-50 to-slate-100 text-gray-900 min-h-screen">
     {% include 'partials/navbar.html' %}
 
-    <main class="container mx-auto px-4 py-8 space-y-8">
-        <section class="grid gap-4 md:grid-cols-4">
-            <div class="bg-white p-4 rounded-xl shadow">
-                <p class="text-sm text-gray-500 uppercase">System Status</p>
-                <p class="text-2xl font-semibold mt-2 {{ 'text-green-600' if db_status.status == 'UP' else 'text-red-600' }}">
-                    {{ db_status.status }}
-                </p>
-                <p class="text-xs text-gray-400 mt-1">{{ db_status.message }}</p>
-            </div>
-            <div class="bg-white p-4 rounded-xl shadow">
-                <p class="text-sm text-gray-500 uppercase">Error Rate</p>
-                <p class="text-2xl font-semibold mt-2 {{ 'text-red-600' if error_rate > 1 else 'text-green-600' }}">
-                    {{ error_rate }}%
-                </p>
-                <p class="text-xs text-gray-400 mt-1">Across all HTTP requests</p>
-            </div>
-            <div class="bg-white p-4 rounded-xl shadow">
-                <p class="text-sm text-gray-500 uppercase">Mean Orders / Day</p>
-                <p class="text-2xl font-semibold mt-2">{{ '%.2f' | format(orders_metrics.mean_per_day) }}</p>
-                <p class="text-xs text-gray-400 mt-1">Quarter: {{ selected_window.label }}</p>
-            </div>
-            <div class="bg-white p-4 rounded-xl shadow">
-                <p class="text-sm text-gray-500 uppercase">Mean Refunds / Day</p>
-                <p class="text-2xl font-semibold mt-2">{{ '%.2f' | format(refund_metrics.mean_per_day) }}</p>
-                <p class="text-xs text-gray-400 mt-1">Quarter: {{ selected_window.label }}</p>
-            </div>
-        </section>
+    <main class="container mx-auto px-4 py-8">
+        <!-- Welcome Header -->
+        <div class="mb-8">
+            <h1 class="text-3xl font-bold text-gray-900">Welcome back, {{ username }}</h1>
+            <p class="text-gray-500 mt-1">Here's what's happening with your store today.</p>
+        </div>
 
-        <section class="grid gap-4 md:grid-cols-2">
-            <div class="bg-white p-4 rounded-xl shadow">
-                <p class="text-sm text-gray-500 uppercase">RMA Rate</p>
-                <p class="text-2xl font-semibold mt-2">{{ '%.2f' | format(rma_metrics.rate) }}%</p>
-                <p class="text-xs text-gray-400 mt-1">{{ rma_metrics.count }} return request(s) this quarter</p>
-            </div>
-            <div class="bg-white p-4 rounded-xl shadow">
-                <p class="text-sm text-gray-500 uppercase">RMA Cycle Time</p>
-                <p class="text-2xl font-semibold mt-2">{{ '%.1f' | format(rma_metrics.cycle_hours) }} hrs</p>
-                <p class="text-xs text-gray-400 mt-1">Avg time from submission to resolution</p>
-            </div>
-        </section>
-
-        <!-- CP4 Feature 2.2: Low Stock Alerts -->
-        <section class="bg-white p-6 rounded-xl shadow space-y-4">
-            <div class="flex items-center justify-between">
-                <div>
-                    <h2 class="text-xl font-semibold flex items-center gap-2">
-                        <svg class="w-6 h-6 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
+        <!-- Quick Stats Row -->
+        <section class="grid gap-4 md:grid-cols-4 mb-8">
+            <div class="stat-card bg-white/80 border border-gray-100 p-5 rounded-2xl shadow-sm">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-sm font-medium text-gray-500">System Status</p>
+                        <p class="text-2xl font-bold mt-1 {{ 'text-emerald-600' if db_status.status == 'UP' else 'text-red-600' }}">
+                            {{ db_status.status }}
+                        </p>
+                    </div>
+                    <div class="w-12 h-12 rounded-xl {{ 'bg-emerald-100' if db_status.status == 'UP' else 'bg-red-100' }} flex items-center justify-center">
+                        <svg class="w-6 h-6 {{ 'text-emerald-600' if db_status.status == 'UP' else 'text-red-600' }}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
                         </svg>
-                        Low Stock Alerts
-                    </h2>
-                    <p class="text-sm text-gray-500">Products below threshold ({{ low_stock_summary.threshold }} units)</p>
-                </div>
-                <div class="flex items-center gap-4">
-                    <div class="text-center">
-                        <p class="text-2xl font-bold {{ 'text-red-600' if low_stock_summary.critical_count > 0 else 'text-gray-400' }}">{{ low_stock_summary.critical_count }}</p>
-                        <p class="text-xs text-gray-500">Critical</p>
-                    </div>
-                    <div class="text-center">
-                        <p class="text-2xl font-bold {{ 'text-yellow-600' if low_stock_summary.warning_count > 0 else 'text-gray-400' }}">{{ low_stock_summary.warning_count }}</p>
-                        <p class="text-xs text-gray-500">Warning</p>
-                    </div>
-                    <div class="text-center">
-                        <p class="text-2xl font-bold {{ 'text-orange-600' if low_stock_summary.total_alerts > 0 else 'text-gray-400' }}">{{ low_stock_summary.total_alerts }}</p>
-                        <p class="text-xs text-gray-500">Total</p>
                     </div>
                 </div>
+                <p class="text-xs text-gray-400 mt-2">{{ db_status.message }}</p>
             </div>
             
-            {% if low_stock_summary.alerts %}
-            <div class="overflow-x-auto">
-                <table class="min-w-full text-sm">
-                    <thead class="bg-gray-50 text-gray-500 uppercase text-xs">
-                        <tr>
-                            <th class="px-4 py-2 text-left">Product</th>
-                            <th class="px-4 py-2 text-center">Current Stock</th>
-                            <th class="px-4 py-2 text-center">Threshold</th>
-                            <th class="px-4 py-2 text-center">Severity</th>
-                        </tr>
-                    </thead>
-                    <tbody class="divide-y">
-                        {% for alert in low_stock_summary.alerts %}
-                        <tr class="hover:bg-gray-50">
-                            <td class="px-4 py-3">
-                                <div class="flex items-center gap-2">
-                                    <span class="font-medium text-gray-900">{{ alert.product_name }}</span>
-                                    <span class="text-xs text-gray-400">(ID: {{ alert.product_id }})</span>
-                                </div>
-                            </td>
-                            <td class="px-4 py-3 text-center">
-                                <span class="font-bold {{ 'text-red-600' if alert.current_stock == 0 else 'text-gray-900' }}">
-                                    {{ alert.current_stock }}
-                                </span>
-                            </td>
-                            <td class="px-4 py-3 text-center text-gray-500">{{ alert.threshold }}</td>
-                            <td class="px-4 py-3 text-center">
-                                {% if alert.severity == 'critical' %}
-                                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
-                                    <svg class="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
-                                        <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"></path>
-                                    </svg>
-                                    Critical
-                                </span>
-                                {% elif alert.severity == 'warning' %}
-                                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
-                                    Warning
-                                </span>
-                                {% else %}
-                                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-800">
-                                    Low
-                                </span>
-                                {% endif %}
-                            </td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
+            <div class="stat-card bg-white/80 border border-gray-100 p-5 rounded-2xl shadow-sm">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-sm font-medium text-gray-500">Error Rate</p>
+                        <p class="text-2xl font-bold mt-1 {{ 'text-red-600' if error_rate > 1 else 'text-emerald-600' }}">
+                            {{ error_rate }}%
+                        </p>
+                    </div>
+                    <div class="w-12 h-12 rounded-xl {{ 'bg-red-100' if error_rate > 1 else 'bg-emerald-100' }} flex items-center justify-center">
+                        <svg class="w-6 h-6 {{ 'text-red-600' if error_rate > 1 else 'text-emerald-600' }}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                        </svg>
+                    </div>
+                </div>
+                <p class="text-xs text-gray-400 mt-2">Across all HTTP requests</p>
             </div>
-            {% else %}
-            <div class="text-center py-8">
-                <svg class="w-12 h-12 text-green-300 mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                </svg>
-                <p class="text-gray-500">All products are well-stocked!</p>
-                <p class="text-sm text-gray-400">No products below the {{ low_stock_summary.threshold }}-unit threshold</p>
+            
+            <div class="stat-card bg-white/80 border border-gray-100 p-5 rounded-2xl shadow-sm">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-sm font-medium text-gray-500">Orders Today</p>
+                        <p class="text-2xl font-bold mt-1 text-blue-600">{{ '%.1f' | format(orders_metrics.mean_per_day) }}</p>
+                    </div>
+                    <div class="w-12 h-12 rounded-xl bg-blue-100 flex items-center justify-center">
+                        <svg class="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"></path>
+                        </svg>
+                    </div>
+                </div>
+                <p class="text-xs text-gray-400 mt-2">Avg per day ({{ selected_window.label }})</p>
             </div>
-            {% endif %}
-        </section>
-
-        <section class="bg-white p-6 rounded-xl shadow space-y-4">
-            <header class="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-                <div>
-                    <h2 class="text-xl font-semibold">Business KPIs</h2>
-                    <p class="text-sm text-gray-500">Orders and refunds between 2025 Q1 and 2050 Q4.</p>
-                </div>
-                <form method="get" class="flex items-center gap-2">
-                    <label for="quarter" class="text-sm text-gray-600">Quarter</label>
-                    <select id="quarter" name="quarter" class="border rounded px-2 py-1 text-sm">
-                        {% for window in quarter_windows %}
-                        <option value="{{ window.key }}" {% if window.key == selected_window.key %}selected{% endif %}>
-                            {{ window.label }}
-                        </option>
-                        {% endfor %}
-                    </select>
-                    <button type="submit" class="bg-blue-500 text-white text-sm px-3 py-1 rounded">Apply</button>
-                </form>
-            </header>
-
-            <div class="grid gap-6 lg:grid-cols-2">
-                <div class="border rounded-xl p-4 bg-slate-50">
-                    <div class="flex items-center justify-between mb-4">
-                        <div>
-                            <p class="text-sm text-gray-500 uppercase">Orders</p>
-                            <p class="text-2xl font-semibold">{{ orders_metrics.total }}</p>
-                        </div>
-                        <div class="text-right">
-                            <p class="text-xs text-gray-500">Peak day</p>
-                            <p class="text-base font-semibold">{{ orders_metrics.series_max }}</p>
-                        </div>
+            
+            <div class="stat-card bg-white/80 border border-gray-100 p-5 rounded-2xl shadow-sm">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-sm font-medium text-gray-500">Active Returns</p>
+                        <p class="text-2xl font-bold mt-1 text-amber-600">{{ rma_metrics.count }}</p>
                     </div>
-                    <div class="h-56">
-                        <canvas id="ordersChart" class="w-full h-full"></canvas>
+                    <div class="w-12 h-12 rounded-xl bg-amber-100 flex items-center justify-center">
+                        <svg class="w-6 h-6 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6"></path>
+                        </svg>
                     </div>
                 </div>
-                <div class="border rounded-xl p-4 bg-slate-50">
-                    <div class="flex items-center justify-between mb-4">
-                        <div>
-                            <p class="text-sm text-gray-500 uppercase">Refunds</p>
-                            <p class="text-2xl font-semibold">{{ refund_metrics.total }}</p>
-                        </div>
-                        <div class="text-right">
-                            <p class="text-xs text-gray-500">Peak day</p>
-                            <p class="text-base font-semibold">{{ refund_metrics.series_max }}</p>
-                        </div>
-                    </div>
-                    <div class="h-56">
-                        <canvas id="refundsChart" class="w-full h-full"></canvas>
-                    </div>
-                </div>
+                <p class="text-xs text-gray-400 mt-2">{{ '%.1f' | format(rma_metrics.rate) }}% RMA rate</p>
             </div>
         </section>
 
-        <section class="bg-white p-6 rounded-xl shadow space-y-4">
-            <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-                <div>
-                    <h2 class="text-xl font-semibold">Quality Scenario Monitoring</h2>
-                    <p class="text-sm text-gray-500">Live view of Availability A.1 and Performance P.1 response measures.</p>
-                </div>
-            </div>
-            <div class="grid gap-4 md:grid-cols-2">
-                <div class="border rounded-xl p-4 bg-slate-50 space-y-2">
-                    <div class="flex items-center justify-between">
-                        <div>
-                            <p class="text-xs uppercase text-gray-500">Availability A.1</p>
-                            <p class="font-semibold">Circuit Breaker + Graceful Degradation</p>
+        <!-- Admin Portals Grid -->
+        <section class="grid gap-6 lg:grid-cols-3 mb-8">
+            <!-- User Admin Portal -->
+            <div class="card-hover bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+                <div class="p-6 border-b border-gray-100">
+                    <div class="flex items-center gap-3 mb-4">
+                        <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center">
+                            <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"></path>
+                            </svg>
                         </div>
-                        <span class="text-sm font-semibold {{ 'text-green-600' if scenario_metrics.A1.fulfilled else 'text-red-600' }}">
-                            {{ 'Fulfilled' if scenario_metrics.A1.fulfilled else 'Needs Attention' }}
-                        </span>
+                        <div>
+                            <h3 class="text-lg font-semibold text-gray-900">User Admin</h3>
+                            <p class="text-sm text-gray-500">Manage user roles & permissions</p>
+                        </div>
                     </div>
-                    <ul class="text-sm text-gray-600 space-y-1">
-                        <li>
-                            Accepted / Submitted:
-                            {{ scenario_metrics.A1.accepted|int }} /
-                            {{ scenario_metrics.A1.submitted|int }}
-                        </li>
-                        <li>
-                            Success Rate:
-                            {% if scenario_metrics.A1.success_rate is not none %}
-                                {{ '%.1f'|format(scenario_metrics.A1.success_rate) }}%
+                    <div class="grid grid-cols-2 gap-3 text-center">
+                        <div class="bg-violet-50 rounded-xl p-3">
+                            <p class="text-2xl font-bold text-violet-600">{{ users|length if users else 0 }}</p>
+                            <p class="text-xs text-gray-500">Total Users</p>
+                        </div>
+                        <div class="bg-purple-50 rounded-xl p-3">
+                            <p class="text-2xl font-bold text-purple-600">{{ users|selectattr('role', 'equalto', 'admin')|list|length if users else 0 }}</p>
+                            <p class="text-xs text-gray-500">Admins</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="p-4 max-h-48 overflow-y-auto">
+                    <table class="w-full text-sm">
+                        <tbody class="divide-y divide-gray-100">
+                            {% for user in users[:5] if users %}
+                            <tr>
+                                <td class="py-2">
+                                    <span class="font-medium text-gray-700">{{ user.username }}</span>
+                                </td>
+                                <td class="py-2 text-right">
+                                    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium {{ 'bg-violet-100 text-violet-800' if user.role == 'admin' else 'bg-gray-100 text-gray-700' }}">
+                                        {{ user.role|capitalize }}
+                                    </span>
+                                </td>
+                            </tr>
                             {% else %}
-                                N/A
-                            {% endif %}
-                        </li>
-                        {% if scenario_metrics.A1.submitted == 0 %}
-                        <li class="text-amber-600">
-                            Awaiting traffic: run the availability load to populate metrics.
-                        </li>
-                        {% endif %}
-                        <li>MTTR: {{ scenario_metrics.A1.mttr_display }}</li>
-                        <li class="{{ 'text-green-600' if scenario_metrics.A1.fulfilled else 'text-red-600' }}">
-                            Target ≥99% accepted, &lt; 5 min MTTR
-                        </li>
-                    </ul>
+                            <tr><td class="py-2 text-gray-400 text-center" colspan="2">No users</td></tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
                 </div>
-                <div class="border rounded-xl p-4 bg-slate-50 space-y-2">
-                    <div class="flex items-center justify-between">
-                        <div>
-                            <p class="text-xs uppercase text-gray-500">Performance P.1</p>
-                            <p class="font-semibold">Manage Event Arrival (Throttling)</p>
+                <div class="p-4 bg-gray-50 border-t border-gray-100">
+                    <a href="{{ url_for('admin_users') }}" class="w-full inline-flex items-center justify-center gap-2 bg-gradient-to-r from-violet-500 to-purple-600 text-white px-4 py-2.5 rounded-xl text-sm font-medium hover:opacity-90 transition">
+                        <span>Manage Users</span>
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
+                    </a>
+                </div>
+            </div>
+
+            <!-- Manage Store Portal -->
+            <div class="card-hover bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+                <div class="p-6 border-b border-gray-100">
+                    <div class="flex items-center gap-3 mb-4">
+                        <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center">
+                            <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"></path>
+                            </svg>
                         </div>
-                        <span class="text-sm font-semibold {{ 'text-green-600' if scenario_metrics.P1.fulfilled else 'text-red-600' }}">
-                            {{ 'Fulfilled' if scenario_metrics.P1.fulfilled else 'Needs Attention' }}
-                        </span>
+                        <div>
+                            <h3 class="text-lg font-semibold text-gray-900">Manage Store</h3>
+                            <p class="text-sm text-gray-500">Products, stock & flash sales</p>
+                        </div>
                     </div>
-                    <ul class="text-sm text-gray-600 space-y-1">
-                        <li>
-                            95th Percentile Latency:
-                            {% if scenario_metrics.P1.latency_p95 is not none %}
-                                {{ '%.0f'|format(scenario_metrics.P1.latency_p95) }} ms
-                            {% else %}
-                                N/A
-                            {% endif %}
-                        </li>
-                        {% if scenario_metrics.P1.latency_p95 is none %}
-                        <li class="text-amber-600">
-                            Awaiting traffic: run the throttling burst to populate metrics.
-                        </li>
-                        {% endif %}
-                        <li class="{{ 'text-green-600' if scenario_metrics.P1.fulfilled else 'text-red-600' }}">
-                            Target ≤ 500 ms for accepted orders
-                        </li>
-                    </ul>
+                    <div class="grid grid-cols-3 gap-2 text-center">
+                        <div class="bg-emerald-50 rounded-xl p-3">
+                            <p class="text-xl font-bold text-emerald-600">{{ products|length if products else 0 }}</p>
+                            <p class="text-xs text-gray-500">Products</p>
+                        </div>
+                        <div class="bg-amber-50 rounded-xl p-3">
+                            <p class="text-xl font-bold {{ 'text-red-600' if low_stock_summary.total_alerts > 0 else 'text-amber-600' }}">{{ low_stock_summary.total_alerts }}</p>
+                            <p class="text-xs text-gray-500">Low Stock</p>
+                        </div>
+                        <div class="bg-rose-50 rounded-xl p-3">
+                            <p class="text-xl font-bold text-rose-600">{{ flash_sales|length if flash_sales else 0 }}</p>
+                            <p class="text-xs text-gray-500">Flash Sales</p>
+                        </div>
+                    </div>
                 </div>
-            </div>
-        </section>
-
-        <section class="bg-white p-6 rounded-xl shadow space-y-4">
-            <div class="flex items-center justify-between">
-                <div>
-                    <h2 class="text-xl font-semibold">HTTP Metrics</h2>
-                    <p class="text-sm text-gray-500">Latency and throughput per endpoint.</p>
-                </div>
-                <a href="{{ url_for('admin_metrics') }}" class="text-blue-500 hover:underline text-sm">Download JSON</a>
-            </div>
-            <div class="overflow-x-auto">
-                <table class="min-w-full text-sm">
-                    <thead class="bg-gray-50 text-gray-500 uppercase text-xs">
-                        <tr>
-                            <th class="px-3 py-2 text-left">Endpoint</th>
-                            <th class="px-3 py-2">Method</th>
-                            <th class="px-3 py-2">Status</th>
-                            <th class="px-3 py-2">Count</th>
-                            <th class="px-3 py-2">Avg ms</th>
-                            <th class="px-3 py-2">Max ms</th>
-                        </tr>
-                    </thead>
-                    <tbody class="divide-y">
-                        {% for histogram in metrics.histograms.get('http_request_latency_ms', []) %}
-                        <tr>
-                            <td class="px-3 py-2">{{ histogram.labels.get('endpoint', 'n/a') }}</td>
-                            <td class="px-3 py-2 text-center">{{ histogram.labels.get('method', 'n/a') }}</td>
-                            <td class="px-3 py-2 text-center">{{ histogram.labels.get('status', 'n/a') }}</td>
-                            <td class="px-3 py-2 text-center">{{ histogram.stats.count }}</td>
-                            <td class="px-3 py-2 text-center">{{ '%.2f'|format(histogram.stats.avg) }}</td>
-                            <td class="px-3 py-2 text-center">{{ '%.2f'|format(histogram.stats.max if histogram.stats.max else 0) }}</td>
-                        </tr>
-                        {% else %}
-                        <tr>
-                            <td class="px-3 py-4 text-center text-gray-500" colspan="6">No request metrics captured yet.</td>
-                        </tr>
+                <div class="p-4">
+                    {% if low_stock_summary.alerts %}
+                    <p class="text-xs text-gray-500 mb-2 uppercase font-medium">⚠️ Low Stock Alerts</p>
+                    <div class="space-y-2 max-h-32 overflow-y-auto">
+                        {% for alert in low_stock_summary.alerts[:3] %}
+                        <div class="flex items-center justify-between text-sm p-2 rounded-lg {{ 'bg-red-50' if alert.severity == 'critical' else 'bg-amber-50' }}">
+                            <span class="font-medium text-gray-700">{{ alert.product_name }}</span>
+                            <span class="font-bold {{ 'text-red-600' if alert.severity == 'critical' else 'text-amber-600' }}">{{ alert.current_stock }} left</span>
+                        </div>
                         {% endfor %}
-                    </tbody>
-                </table>
+                    </div>
+                    {% else %}
+                    <div class="text-center py-4">
+                        <svg class="w-8 h-8 text-emerald-400 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                        </svg>
+                        <p class="text-sm text-gray-500">All products well-stocked</p>
+                    </div>
+                    {% endif %}
+                </div>
+                <div class="p-4 bg-gray-50 border-t border-gray-100">
+                    <a href="{{ url_for('manage_store') }}" class="w-full inline-flex items-center justify-center gap-2 bg-gradient-to-r from-emerald-500 to-teal-600 text-white px-4 py-2.5 rounded-xl text-sm font-medium hover:opacity-90 transition">
+                        <span>Manage Store</span>
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
+                    </a>
+                </div>
+            </div>
+
+            <!-- Returns Portal -->
+            <div class="card-hover bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+                <div class="p-6 border-b border-gray-100">
+                    <div class="flex items-center gap-3 mb-4">
+                        <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-center">
+                            <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6"></path>
+                            </svg>
+                        </div>
+                        <div>
+                            <h3 class="text-lg font-semibold text-gray-900">Returns Portal</h3>
+                            <p class="text-sm text-gray-500">RMA & refund management</p>
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-2 gap-3 text-center">
+                        <div class="bg-amber-50 rounded-xl p-3">
+                            <p class="text-2xl font-bold text-amber-600">{{ '%.1f' | format(rma_metrics.cycle_hours) }}h</p>
+                            <p class="text-xs text-gray-500">Avg Cycle Time</p>
+                        </div>
+                        <div class="bg-orange-50 rounded-xl p-3">
+                            <p class="text-2xl font-bold text-orange-600">{{ '%.1f' | format(refund_metrics.mean_per_day) }}</p>
+                            <p class="text-xs text-gray-500">Refunds/Day</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="p-4">
+                    <p class="text-xs text-gray-500 mb-2 uppercase font-medium">RMA Pipeline</p>
+                    <div class="space-y-2">
+                        <div class="flex items-center justify-between text-sm">
+                            <span class="text-gray-600">Pending Authorization</span>
+                            <span class="font-medium text-gray-900">{{ pending_returns if pending_returns else 0 }}</span>
+                        </div>
+                        <div class="flex items-center justify-between text-sm">
+                            <span class="text-gray-600">In Transit</span>
+                            <span class="font-medium text-gray-900">{{ in_transit_returns if in_transit_returns else 0 }}</span>
+                        </div>
+                        <div class="flex items-center justify-between text-sm">
+                            <span class="text-gray-600">Under Inspection</span>
+                            <span class="font-medium text-gray-900">{{ inspection_returns if inspection_returns else 0 }}</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="p-4 bg-gray-50 border-t border-gray-100">
+                    <a href="{{ url_for('returns.admin_returns_dashboard') }}" class="w-full inline-flex items-center justify-center gap-2 bg-gradient-to-r from-amber-500 to-orange-600 text-white px-4 py-2.5 rounded-xl text-sm font-medium hover:opacity-90 transition">
+                        <span>Manage Returns</span>
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
+                    </a>
+                </div>
             </div>
         </section>
 
-        <section class="bg-white p-6 rounded-xl shadow space-y-4">
-            <h2 class="text-xl font-semibold">Recent Events</h2>
-            <div class="space-y-2">
-                {% for event in metrics.events|reverse %}
-                <div class="border rounded-lg p-3 bg-gray-50">
-                    <p class="font-semibold">{{ event.name }}</p>
-                    <p class="text-xs text-gray-500">at {{ event.timestamp | float | round(2) }}</p>
-                    <pre class="mt-2 text-xs bg-white rounded p-2 overflow-auto">{{ event.payload | tojson(indent=2) }}</pre>
+        <!-- Business Monitoring & Quality Scenarios -->
+        <section class="grid gap-6 lg:grid-cols-2 mb-8">
+            <!-- Business KPIs Chart -->
+            <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+                <div class="flex items-center justify-between mb-6">
+                    <div>
+                        <h3 class="text-lg font-semibold text-gray-900">Business Metrics</h3>
+                        <p class="text-sm text-gray-500">Orders & refunds trend</p>
+                    </div>
+                    <form method="get" class="flex items-center gap-2">
+                        <select id="quarter" name="quarter" class="text-sm border border-gray-200 rounded-lg px-3 py-1.5 focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                            {% for window in quarter_windows %}
+                            <option value="{{ window.key }}" {% if window.key == selected_window.key %}selected{% endif %}>{{ window.label }}</option>
+                            {% endfor %}
+                        </select>
+                        <button type="submit" class="bg-blue-500 text-white px-3 py-1.5 rounded-lg text-sm font-medium hover:bg-blue-600 transition">Apply</button>
+                    </form>
                 </div>
-                {% else %}
-                <p class="text-gray-500 text-sm">No events recorded yet.</p>
-                {% endfor %}
+                <div class="grid grid-cols-2 gap-4 mb-4">
+                    <div class="bg-blue-50 rounded-xl p-4">
+                        <div class="flex items-center gap-2">
+                            <div class="w-3 h-3 rounded-full bg-blue-500"></div>
+                            <span class="text-sm text-gray-600">Orders</span>
+                        </div>
+                        <p class="text-2xl font-bold text-blue-600 mt-1">{{ orders_metrics.total }}</p>
+                    </div>
+                    <div class="bg-emerald-50 rounded-xl p-4">
+                        <div class="flex items-center gap-2">
+                            <div class="w-3 h-3 rounded-full bg-emerald-500"></div>
+                            <span class="text-sm text-gray-600">Refunds</span>
+                        </div>
+                        <p class="text-2xl font-bold text-emerald-600 mt-1">{{ refund_metrics.total }}</p>
+                    </div>
+                </div>
+                <div class="h-48">
+                    <canvas id="businessChart"></canvas>
+                </div>
+            </div>
+
+            <!-- Quality Scenarios -->
+            <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+                <div class="flex items-center justify-between mb-6">
+                    <div>
+                        <h3 class="text-lg font-semibold text-gray-900">Quality Scenarios</h3>
+                        <p class="text-sm text-gray-500">A.1 Availability & P.1 Performance</p>
+                    </div>
+                    <a href="{{ url_for('admin_metrics') }}" class="text-sm text-blue-500 hover:underline">Export JSON</a>
+                </div>
+                <div class="space-y-4">
+                    <!-- Availability A.1 -->
+                    <div class="rounded-xl border {{ 'border-emerald-200 bg-emerald-50' if scenario_metrics.A1.fulfilled else 'border-red-200 bg-red-50' }} p-4">
+                        <div class="flex items-center justify-between mb-2">
+                            <div class="flex items-center gap-2">
+                                <span class="text-xs font-bold uppercase {{ 'text-emerald-600' if scenario_metrics.A1.fulfilled else 'text-red-600' }}">A.1</span>
+                                <span class="text-sm font-medium text-gray-700">Circuit Breaker + Graceful Degradation</span>
+                            </div>
+                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium {{ 'bg-emerald-100 text-emerald-800' if scenario_metrics.A1.fulfilled else 'bg-red-100 text-red-800' }}">
+                                {{ 'Fulfilled' if scenario_metrics.A1.fulfilled else 'Attention' }}
+                            </span>
+                        </div>
+                        <div class="grid grid-cols-3 gap-2 text-sm">
+                            <div>
+                                <span class="text-gray-500">Success Rate:</span>
+                                <span class="font-medium">{% if scenario_metrics.A1.success_rate is not none %}{{ '%.1f'|format(scenario_metrics.A1.success_rate) }}%{% else %}N/A{% endif %}</span>
+                            </div>
+                            <div>
+                                <span class="text-gray-500">MTTR:</span>
+                                <span class="font-medium">{{ scenario_metrics.A1.mttr_display }}</span>
+                            </div>
+                            <div>
+                                <span class="text-gray-500">Target:</span>
+                                <span class="font-medium">≥99%, &lt;5min</span>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- Performance P.1 -->
+                    <div class="rounded-xl border {{ 'border-emerald-200 bg-emerald-50' if scenario_metrics.P1.fulfilled else 'border-red-200 bg-red-50' }} p-4">
+                        <div class="flex items-center justify-between mb-2">
+                            <div class="flex items-center gap-2">
+                                <span class="text-xs font-bold uppercase {{ 'text-emerald-600' if scenario_metrics.P1.fulfilled else 'text-red-600' }}">P.1</span>
+                                <span class="text-sm font-medium text-gray-700">Manage Event Arrival (Throttling)</span>
+                            </div>
+                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium {{ 'bg-emerald-100 text-emerald-800' if scenario_metrics.P1.fulfilled else 'bg-red-100 text-red-800' }}">
+                                {{ 'Fulfilled' if scenario_metrics.P1.fulfilled else 'Attention' }}
+                            </span>
+                        </div>
+                        <div class="grid grid-cols-2 gap-2 text-sm">
+                            <div>
+                                <span class="text-gray-500">P95 Latency:</span>
+                                <span class="font-medium">{% if scenario_metrics.P1.latency_p95 is not none %}{{ '%.0f'|format(scenario_metrics.P1.latency_p95) }}ms{% else %}N/A{% endif %}</span>
+                            </div>
+                            <div>
+                                <span class="text-gray-500">Target:</span>
+                                <span class="font-medium">≤500ms</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- HTTP Metrics & Recent Events -->
+        <section class="grid gap-6 lg:grid-cols-2">
+            <!-- HTTP Metrics -->
+            <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+                <h3 class="text-lg font-semibold text-gray-900 mb-4">HTTP Metrics</h3>
+                <div class="overflow-x-auto max-h-64">
+                    <table class="w-full text-sm">
+                        <thead class="bg-gray-50 text-gray-500 uppercase text-xs sticky top-0">
+                            <tr>
+                                <th class="px-3 py-2 text-left rounded-l-lg">Endpoint</th>
+                                <th class="px-3 py-2 text-center">Count</th>
+                                <th class="px-3 py-2 text-center rounded-r-lg">Avg ms</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-gray-100">
+                            {% for histogram in metrics.histograms.get('http_request_latency_ms', [])[:8] %}
+                            <tr class="hover:bg-gray-50">
+                                <td class="px-3 py-2 font-medium text-gray-700">{{ histogram.labels.get('endpoint', 'n/a')[:25] }}</td>
+                                <td class="px-3 py-2 text-center">{{ histogram.stats.count }}</td>
+                                <td class="px-3 py-2 text-center">{{ '%.0f'|format(histogram.stats.avg) }}</td>
+                            </tr>
+                            {% else %}
+                            <tr><td class="px-3 py-4 text-center text-gray-400" colspan="3">No metrics yet</td></tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Recent Events -->
+            <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+                <h3 class="text-lg font-semibold text-gray-900 mb-4">Recent Events</h3>
+                <div class="space-y-3 max-h-64 overflow-y-auto">
+                    {% for event in metrics.events[-5:]|reverse %}
+                    <div class="bg-gray-50 rounded-xl p-3">
+                        <div class="flex items-center justify-between mb-1">
+                            <span class="font-medium text-gray-700 text-sm">{{ event.name }}</span>
+                            <span class="text-xs text-gray-400">{{ event.timestamp | float | round(2) }}</span>
+                        </div>
+                        <pre class="text-xs bg-white rounded p-2 overflow-auto max-h-20">{{ event.payload | tojson(indent=2) }}</pre>
+                    </div>
+                    {% else %}
+                    <p class="text-gray-400 text-sm text-center py-4">No events recorded yet</p>
+                    {% endfor %}
+                </div>
             </div>
         </section>
     </main>
@@ -327,58 +409,40 @@
         const ordersSeries = {{ orders_metrics.series | tojson }};
         const refundsSeries = {{ refund_metrics.series | tojson }};
 
-        function buildDataset(series) {
-            return {
-                labels: series.map(point => point.date),
-                data: series.map(point => point.count),
-            };
-        }
-
-        const ordersData = buildDataset(ordersSeries);
-        const refundsData = buildDataset(refundsSeries);
-
-        const commonOptions = {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: {
-                legend: { display: false },
-            },
-            scales: {
-                x: { ticks: { maxTicksLimit: 6 } },
-                y: { beginAtZero: true, ticks: { precision: 0 } },
-            },
-        };
-
-        new Chart(document.getElementById('ordersChart').getContext('2d'), {
+        const ctx = document.getElementById('businessChart').getContext('2d');
+        new Chart(ctx, {
             type: 'line',
             data: {
-                labels: ordersData.labels,
-                datasets: [{
-                    data: ordersData.data,
-                    borderColor: '#2563eb',
-                    backgroundColor: 'rgba(37, 99, 235, 0.1)',
-                    fill: true,
-                    tension: 0.3,
-                }],
+                labels: ordersSeries.map(p => p.date),
+                datasets: [
+                    {
+                        label: 'Orders',
+                        data: ordersSeries.map(p => p.count),
+                        borderColor: '#3b82f6',
+                        backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                        fill: true,
+                        tension: 0.4,
+                    },
+                    {
+                        label: 'Refunds',
+                        data: refundsSeries.map(p => p.count),
+                        borderColor: '#10b981',
+                        backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                        fill: true,
+                        tension: 0.4,
+                    }
+                ]
             },
-            options: commonOptions,
-        });
-
-        new Chart(document.getElementById('refundsChart').getContext('2d'), {
-            type: 'line',
-            data: {
-                labels: refundsData.labels,
-                datasets: [{
-                    data: refundsData.data,
-                    borderColor: '#16a34a',
-                    backgroundColor: 'rgba(22, 163, 74, 0.1)',
-                    fill: true,
-                    tension: 0.3,
-                }],
-            },
-            options: commonOptions,
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { display: false } },
+                scales: {
+                    x: { grid: { display: false }, ticks: { maxTicksLimit: 6 } },
+                    y: { beginAtZero: true, grid: { color: '#f3f4f6' } }
+                }
+            }
         });
     </script>
 </body>
 </html>
-

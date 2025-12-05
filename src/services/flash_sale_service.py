@@ -13,8 +13,15 @@ class FlashSaleService:
     def __init__(self, db_session: Session):
         self.db = db_session
     
-    def create_flash_sale(self, product_id: int, start_time: datetime, end_time: datetime, 
-                         discount_percent: float, max_quantity: int) -> Tuple[bool, str, Optional[FlashSale]]:
+    def create_flash_sale(
+        self,
+        product_id: int,
+        start_time: datetime,
+        end_time: datetime,
+        discount_percent: float,
+        max_quantity: int,
+        title: str = "Flash Sale",
+    ) -> Tuple[bool, str, Optional[FlashSale]]:
         """Create a new flash sale"""
         try:
             # Validate product exists
@@ -25,10 +32,16 @@ class FlashSaleService:
             # Validate time range
             if start_time >= end_time:
                 return False, "Start time must be before end time", None
+            if end_time <= datetime.now(timezone.utc):
+                return False, "End time must be in the future", None
             
             # Validate discount
             if not (0 <= discount_percent <= 100):
                 return False, "Discount must be between 0 and 100 percent", None
+            if max_quantity <= 0:
+                return False, "Max quantity must be positive", None
+            if not title or not title.strip():
+                return False, "Title is required", None
             
             # Check for overlapping flash sales
             overlapping = self.db.query(FlashSale).filter(
@@ -43,6 +56,7 @@ class FlashSaleService:
             
             flash_sale = FlashSale(
                 productID=product_id,
+                title=title.strip(),
                 start_time=start_time,
                 end_time=end_time,
                 discount_percent=discount_percent,

@@ -1,0 +1,117 @@
+@startuml Sequence Diagram - RMA Status Notifications (CP4 Feature 2.3)
+
+!theme plain
+skinparam sequenceMessageAlign center
+skinparam sequenceArrowThickness 1
+skinparam roundcorner 15
+skinparam maxmessagesize 50
+skinparam dpi 120
+skinparam participantFontSize 10
+skinparam participantBackgroundColor #E3F2FD
+skinparam participantBorderColor #1976D2
+skinparam actorBackgroundColor #FFEBEE
+skinparam actorBorderColor #D32F2F
+skinparam noteBackgroundColor #FFF3CD
+skinparam noteBorderColor #856404
+
+actor "Customer" as Customer
+participant "Browser" as Browser
+participant "Flask App" as Flask
+participant "Returns Service" as ReturnsService
+participant "Notification Service\n(Pub-Sub Subscriber)" as NotificationService
+participant "Admin Portal" as AdminPortal
+actor "Store Admin" as Admin
+
+== RMA Authorization (Status Change Triggers Notification) ==
+
+Admin -> AdminPortal: Review RMA request
+AdminPortal -> Flask: POST /admin/returns/<id>/authorize
+Flask -> ReturnsService: authorize_return(rma_id, approve=true)
+
+activate ReturnsService
+ReturnsService -> ReturnsService: old_status = PENDING_AUTHORIZATION
+ReturnsService -> ReturnsService: transition_to(AUTHORIZED)
+ReturnsService -> ReturnsService: generate RMA number
+
+note over ReturnsService
+  Status change detected:
+  PENDING → AUTHORIZED
+end note
+
+ReturnsService -> NotificationService: publish_rma_status_change(\n  rma_id, customer_id,\n  old_status, new_status,\n  rma_number)
+deactivate ReturnsService
+
+activate NotificationService
+NotificationService -> NotificationService: create_notification(\n  user_id=customer_id,\n  type="rma_status_change",\n  title="RMA Authorized",\n  message="Your return #{rma}\n  has been authorized")
+NotificationService -> NotificationService: store in notifications[user_id]
+NotificationService -> NotificationService: increment unread_count
+deactivate NotificationService
+
+ReturnsService --> Flask: success, "Return authorized"
+Flask --> AdminPortal: 200 OK
+
+== Customer Views Notification ==
+
+Customer -> Browser: Navigate to any page
+Browser -> Flask: GET /page
+Flask -> Flask: @context_processor inject_nav_context()
+
+activate Flask
+Flask -> NotificationService: get_unread_count(user_id)
+NotificationService --> Flask: unread_count = 1
+Flask --> Browser: Render page with notification badge (1)
+deactivate Flask
+
+Customer -> Browser: Click notification bell icon
+Browser -> Flask: GET /api/notifications
+
+activate Flask
+Flask -> NotificationService: get_notifications(user_id, limit=20)
+NotificationService --> Flask: [Notification(...)]
+Flask --> Browser: JSON {notifications, unread_count}
+deactivate Flask
+
+Browser --> Customer: Show notification panel:\n"RMA Authorized - Your return\n#RMA-20241205-00001 has been authorized"
+
+== Customer Marks Notification as Read ==
+
+Customer -> Browser: Click notification item
+Browser -> Flask: POST /api/notifications/<id>/read
+
+activate Flask
+Flask -> NotificationService: mark_as_read(user_id, notification_id)
+NotificationService -> NotificationService: notification.is_read = True
+NotificationService -> NotificationService: decrement unread_count
+NotificationService --> Flask: success=True
+Flask --> Browser: JSON {success, unread_count: 0}
+deactivate Flask
+
+Browser --> Customer: Badge count updated to 0
+
+== Additional Status Changes (Inspection Complete) ==
+
+Admin -> AdminPortal: Record inspection result
+AdminPortal -> Flask: POST /admin/returns/<id>/inspection
+Flask -> ReturnsService: record_inspection(rma_id, APPROVED)
+
+activate ReturnsService
+ReturnsService -> ReturnsService: old_status = RECEIVED
+ReturnsService -> ReturnsService: transition_to(APPROVED)
+
+ReturnsService -> NotificationService: publish_rma_status_change(\n  rma_id, customer_id,\n  RECEIVED, APPROVED,\n  rma_number)
+deactivate ReturnsService
+
+activate NotificationService
+NotificationService -> NotificationService: create_notification(\n  type="rma_status_change",\n  title="Return Approved",\n  message="Your return has passed\n  inspection and is approved")
+NotificationService --> ReturnsService: notification created
+deactivate NotificationService
+
+note over NotificationService
+  Pub-Sub Pattern Benefits:
+  - ReturnsService decoupled from notification logic
+  - Easy to add email/SMS channels later
+  - Single event triggers multiple subscribers
+end note
+
+@enduml
+

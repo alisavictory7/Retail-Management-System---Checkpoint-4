@@ -1,11 +1,48 @@
-# Retail Management System - Checkpoint 3
+# Retail Management System - Checkpoint 4
 
 **Author:** Alisa  
-**Repository:** https://github.com/alisavictory7/Retail-Management-System---Checkpoint-3
+**Course:** Software Architecture & Design  
+**Repository:** https://github.com/alisavictory7/Retail-Management-System---Checkpoint-4
 
-Checkpoint 3 focuses on making the system deployable, observable, and reliable, while also introducing a realistic new feature: Returns & Refunds (RMA workflow).
+---
 
-## ✅ Checkpoint 3 Focus
+## 📝 Project Description
+
+A full-stack retail management system implementing enterprise-grade quality attributes and architectural patterns. This system handles complete retail operations including user management, product catalog, shopping cart, payments, order tracking, returns & refunds (RMA), and administrative dashboards with real-time monitoring.
+
+Checkpoint 4 builds on the deployable, observable, and reliable foundation from CP3 by adding three lightweight features using architectural patterns documented in ADRs, along with a redesigned admin experience.
+
+---
+
+## 👥 Team Members
+
+| Name | Role |
+|------|------|
+| **Alisa** | Developer & Architect |
+
+---
+
+## ✅ Checkpoint 4 Features
+
+### New Features Summary
+
+| Feature | Description | Pattern | Route/Component |
+|---------|-------------|---------|-----------------|
+| **2.1 Order History Filtering** | Filter orders by status, date range, and keyword search | Layered Service Abstraction | `/order-history`, `HistoryService` |
+| **2.2 Low Stock Alerts** | Real-time alerts when inventory falls below threshold | Publish-Subscribe | `/admin/dashboard`, `LowStockAlertService` |
+| **2.3 RMA Notifications** | In-app notifications for return status changes | Publish-Subscribe | `/api/notifications`, `NotificationService` |
+| **Unified Admin Dashboard** | Portal-based dashboard with quick access cards | Modular UI | `/admin/dashboard` |
+| **Manage Store** | Combined products, stock alerts, and flash sales | Tabbed Interface | `/admin/manage-store` |
+| **Flash Sales** | Time-limited promotions with discount highlighting | Service Layer | `/admin/flash-sales` |
+
+### Architectural Highlights
+
+- **Layered Service Pattern (Feature 2.1):** `HistoryService` encapsulates all filtering logic, decoupling controllers from database queries
+- **Pub-Sub Pattern (Features 2.2 & 2.3):** Services publish events that trigger alerts and notifications without tight coupling
+- **Configuration-Driven:** `LOW_STOCK_THRESHOLD` and `ORDER_HISTORY_PAGE_SIZE` in `Config` allow runtime tuning
+- **Portal-Based Admin:** Unified dashboard with intuitive navigation to User Admin, Manage Store, and Returns Portal
+
+## ✅ Checkpoint 3 Foundation
 
 - **Returns & Refunds (RMA):** Full customer + admin workflow with policy checks, partial approvals, evidence uploads, and refund orchestration via `ReturnsService` + `RefundService`.
 - **Containerized Deployment:** `deploy/dockercompose.yml`, production-ready `Dockerfile`, and entrypoint scripts bring up PostgreSQL, seeds, migrations, and Gunicorn with one command.
@@ -24,8 +61,11 @@ This Retail Management System is a full-stack web application designed to handle
 - **Shopping Cart**: Dynamic cart with real-time calculations including discounts, shipping fees, and import duties
 - **Payment Processing**: Support for both cash and card payments with circuit breaker protection
 - **Order Management**: Complete sales tracking with detailed receipts and audit logging
+- **Order History (CP4)**: Filter and search past orders by status, date range, and keyword
 - **Inventory Management**: Real-time stock updates with concurrency control and conflict resolution
+- **Low Stock Alerts (CP4)**: Admin dashboard displays products below configurable threshold
 - **Returns & Refunds**: Rich RMA workflow (customer + admin) with multi-item validation and up to 20 uploaded evidence photos per request
+- **RMA Notifications (CP4)**: In-app notifications when return status changes (Pub-Sub pattern)
 - **Flash Sales**: High-performance flash sale system with throttling and queuing
 - **Partner Integration**: External partner catalog ingestion with authentication and validation
 - **Quality Tactics**: 14+ enterprise-grade quality tactics implemented and tested
@@ -280,6 +320,35 @@ Prefer a reproducible local stack? Run everything with Docker:
 
 ## 📊 Observability & Runtime Evidence
 
+### Observability Endpoints
+
+| Endpoint | Purpose | Access |
+|----------|---------|--------|
+| `GET /health` | Readiness/liveness probe for Docker health checks | Public |
+| `GET /admin/metrics` | JSON snapshot of counters, histograms, MTTR timers, events | Admin |
+| `GET /admin/dashboard` | Visual dashboard with KPIs, Quality Scenarios, Low Stock Alerts | Admin |
+| `GET /api/notifications` | User's notification list with unread count (CP4) | Authenticated |
+| `GET /api/admin/low-stock` | Low stock alert summary JSON (CP4) | Admin |
+| `GET /order-history` | Order history with filtering (CP4) | Authenticated |
+
+### How Logs & Metrics Support Debugging
+
+The observability stack helps developers and operators quickly diagnose issues:
+
+**Structured Logs** (`src/observability/logging_config.py`): Every HTTP request gets a unique `request_id` (correlation ID). Log entries include timestamp, level, request_id, user_id, endpoint, duration. View logs via `docker compose -f deploy/dockercompose.yml logs -f web`. **Tip:** Grep for `request_id` to trace a single request.
+
+**Counters** (track occurrences): `http_requests_total`, `http_errors_total`, `orders_submitted_total`, `orders_accepted_total`, `returns_created_total`. **Tip:** Compare submitted vs accepted to identify dropped orders.
+
+**Histograms** (latency distribution): `http_request_latency_ms` with p50/p95/p99, `order_processing_latency_ms`, `payment_circuit_mttr_seconds`. **Tip:** p95 > 500ms indicates performance degradation.
+
+**Events** (timestamped occurrences): `refund_failed`, `payment_circuit_opened`, `order_completed`, `rma_status_changed` (CP4), `low_stock_alert` (CP4). **Tip:** Events show exact timestamps for incident timeline.
+
+### CP4 Observability Enhancements
+
+- **Low Stock Alerts** appear in admin dashboard with product names, current stock, and threshold
+- **RMA Notifications** create events monitored via `/admin/metrics`
+- **Order History** queries are logged with filter parameters for debugging
+
 - **Endpoints**
   - `GET /health`: readiness/liveness probe (used by Docker health checks).
   - `GET /admin/metrics`: JSON snapshot of counters, gauges, latency histograms (p95), MTTR timers, and structured events (`refund_failed`, `payment_circuit_opened`, etc.).
@@ -479,49 +548,80 @@ python comprehensive_quality_scenarios_test.py
 ## 📁 Project Structure
 
 ```
-Retail-Management-System/
-├── deploy/                          # Docker Compose files
-│   └── dockercompose.yml
-├── docker/                          # Container entrypoints/helpers
-│   ├── entrypoint.sh
-│   └── wait_for_db.py
-├── src/
-│   ├── main.py
-│   ├── config.py
-│   ├── database.py
-│   ├── models.py
+Retail-Management-System---Checkpoint-4/
+├── src/                             # Application code
+│   ├── main.py                      # Flask routes & app initialization
+│   ├── config.py                    # Configuration settings
+│   ├── database.py                  # Database connection
+│   ├── models.py                    # SQLAlchemy models
 │   ├── blueprints/
-│   │   └── returns.py               # Customer/admin routes for RMAs
+│   │   └── returns.py               # Customer/admin RMA routes
 │   ├── observability/               # Logging + metrics engine
 │   │   ├── metrics.py
 │   │   ├── business_metrics.py
 │   │   └── health.py
-│   ├── services/
-│   │   ├── flash_sale_service.py
+│   ├── services/                    # Domain services
+│   │   ├── flash_sale_service.py    # Flash sale management
+│   │   ├── history_service.py       # CP4: Order history filtering
+│   │   ├── inventory_service.py     # Stock management
+│   │   ├── low_stock_alert_service.py  # CP4: Low stock alerts
+│   │   ├── notification_service.py  # CP4: RMA notifications
 │   │   ├── partner_catalog_service.py
+│   │   ├── payment_service.py
 │   │   ├── refund_service.py
 │   │   └── returns_service.py
 │   └── tactics/                     # Quality tactics implementation
-├── templates/                       # HTML templates (storefront, admin, returns)
-├── static/
+│
+├── tests/                           # Unit tests
+│   ├── test_returns_service.py
+│   ├── test_returns_api.py
+│   ├── test_business_metrics.py
+│   ├── test_quality_scenario_*.py
+│   └── ...
+│
+├── db/                              # Database schema
+│   ├── init.sql                     # Initial schema + seed data
+│   ├── migrations/                  # Schema migrations
+│   └── seeds/                       # Demo seed data
+│
+├── docs/
+│   ├── ADR/                         # Architectural Decision Records
+│   │   ├── ADR_CP3.md
+│   │   └── ADR_CP4.md
+│   ├── UML/                         # UML diagrams (PlantUML)
+│   │   ├── use-case-diagram.puml
+│   │   ├── class-diagram.puml
+│   │   ├── deployment-diagram.puml
+│   │   ├── package-diagram.puml
+│   │   └── sequence-diagram-*.puml
+│   └── Runbook.md
+│
+├── templates/                       # HTML templates
+│   ├── partials/navbar.html         # Unified navigation
+│   ├── admin_dashboard.html         # Portal-based dashboard (CP4)
+│   ├── manage_store.html            # Products + Stock + Flash Sales (CP4)
+│   ├── order_history.html           # Order history with filters (CP4)
+│   ├── admin_users.html             # User administration
+│   ├── admin_returns.html           # Returns management
+│   └── ...
+│
+├── static/                          # Static assets
 │   ├── css/
 │   ├── js/
 │   └── uploads/returns/             # Evidence photos
-├── tests/                           # Comprehensive pytest suites
-├── scripts/
-│   ├── apply_env_preset.py
-│   ├── bootstrap_super_admin.py
-│   ├── performance_scenario_runner.py
-│   ├── run_availability_failure.cmd
-│   ├── run_availability_load.cmd
-│   └── run_performance_load.cmd
-├── db/
-│   ├── init.sql
-│   ├── migrations/                  # e.g., 001_returns_module.sql
-│   └── seeds/                       # returns_demo.sql used in Docker demo
-├── docs/
-│   ├── ADR/
-│   ├── UML/
+│
+├── deploy/                          # Docker Compose files
+│   └── dockercompose.yml
+├── docker/                          # Container helpers
+│   ├── entrypoint.sh
+│   └── wait_for_db.py
+├── scripts/                         # Utility scripts
+│
+├── README.md                        # This file
+├── requirements.txt                 # Python dependencies
+├── Dockerfile                       # Container build
+├── .gitignore                       # Git ignore rules
+└── .env                             # Environment variables (not in repo)
 │   └── Runbook.md
 ├── Checkpoint1.md
 ├── Checkpoint2_Revised.md
@@ -546,6 +646,8 @@ The application uses the following environment variables (configured in `.env`):
 | `DB_NAME` | Database name | retail_management |
 | `THROTTLING_MAX_RPS` | Requests allowed per second before `/checkout` throttles | 100 |
 | `THROTTLING_WINDOW_SECONDS` | Sliding window size used by throttling manager | 1 |
+| `LOW_STOCK_THRESHOLD` | Stock level that triggers low stock alert (CP4) | 5 |
+| `ORDER_HISTORY_PAGE_SIZE` | Number of orders per page in history view (CP4) | 20 |
 
 ### Application Settings
 Key application settings in `src/main.py`:

@@ -1,4 +1,4 @@
-@startuml Package Diagram - CP3 Simplified View
+@startuml Package Diagram - CP4 Architecture View
 
 !theme plain
 skinparam packageStyle rectangle
@@ -20,6 +20,9 @@ package "Core Platform" {
 package "Experience Layer" {
     [src/blueprints/returns.py] as ReturnsBP
     [templates/] as Templates
+    [templates/order_history.html] as OrderHistoryTpl
+    [templates/admin_dashboard.html] as DashboardTpl
+    [templates/manage_store.html] as ManageStoreTpl
 }
 
 package "Domain Services" {
@@ -27,6 +30,13 @@ package "Domain Services" {
     [src/services/refund_service.py] as RefundSvc
     [src/services/payment_service.py] as PaymentSvc
     [src/services/inventory_service.py] as InventorySvc
+}
+
+package "CP4 Feature Services" #E8F5E9 {
+    [src/services/history_service.py] as HistorySvc
+    [src/services/low_stock_alert_service.py] as LowStockSvc
+    [src/services/notification_service.py] as NotificationSvc
+    [src/services/flash_sale_service.py] as FlashSaleSvc
 }
 
 package "Reliability & Observability" {
@@ -52,7 +62,7 @@ package "Tests" as TestsPkg {
 }
 
 package "Docs" as DocsPkg {
-    [docs/ADR/ADR_CP3.md]
+    [docs/ADR/ADR_CP4.md]
     [docs/UML/*.puml]
     [Checkpoint3.md]
     [docs/Runbook.md]
@@ -67,6 +77,20 @@ ReturnsSvc --> InventorySvc
 RefundSvc --> PaymentSvc
 ReturnsSvc --> Models
 InventorySvc --> Models
+
+' CP4 Feature connections
+Main --> HistorySvc : /order-history route
+Main --> LowStockSvc : /admin/dashboard
+Main --> NotificationSvc : context_processor + API
+Main --> FlashSaleSvc : /admin/manage-store
+HistorySvc --> Models : queries Sales, Returns
+LowStockSvc --> Models : monitors Products
+FlashSaleSvc --> Models : manages FlashSale
+NotificationSvc ..> ReturnsSvc : Pub-Sub subscriber
+InventorySvc ..> LowStockSvc : publishes stock events
+OrderHistoryTpl --> Templates
+DashboardTpl --> Templates
+ManageStoreTpl --> Templates
 
 TacticsManager --> Availability
 TacticsManager --> Performance
@@ -86,17 +110,25 @@ TestsPkg --> TacticsManager
 DocsPkg --> Deploy : instructions
 DocsPkg --> BusinessMetrics : diagrams & runbook
 
-note right of ReturnsSvc
-  RMA workflow engine
-  - Validates requests
-  - Drives shipment, inspection, refund states
+note right of HistorySvc
+  CP4 Feature 2.1
+  Order History Filtering
+  - Status/date/keyword filters
+  - Layered service pattern
 end note
 
-note right of BusinessMetrics
-  Dashboard KPIs
-  - Quarter windows
-  - RMA rate & cycle time
-  - Uses Config.DEFAULT_TIMEZONE
+note right of LowStockSvc
+  CP4 Feature 2.2
+  Low Stock Alerts
+  - Pub-Sub pattern
+  - Configurable threshold
+end note
+
+note right of NotificationSvc
+  CP4 Feature 2.3
+  RMA Notifications
+  - In-memory store
+  - Navbar badge count
 end note
 
 @enduml

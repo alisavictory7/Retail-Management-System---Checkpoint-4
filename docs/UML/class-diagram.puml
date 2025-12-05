@@ -1,4 +1,4 @@
-@startuml Class Diagram - Sales, Returns & Observability
+@startuml Class Diagram - Sales, Returns & Observability (CP4)
 
 !theme plain
 skinparam classAttributeIconSize 0
@@ -119,6 +119,61 @@ package "Returns & Refunds" {
     }
 }
 
+package "CP4 Feature Services" #E8F5E9 {
+    class HistoryService {
+        + get_order_history(user_id, filters)
+        + get_returns_history(user_id, filters)
+        + parse_date(date_string)
+        + format_order_for_display(sale)
+    }
+
+    class LowStockAlertService {
+        + check_stock_level(product)
+        + get_alert_summary()
+        + get_low_stock_products()
+        + publish_low_stock_event(product)
+    }
+
+    class NotificationService {
+        + create_notification(user_id, type, msg)
+        + get_notifications(user_id, filters)
+        + get_unread_count(user_id)
+        + mark_as_read(user_id, notif_id)
+        + mark_all_as_read(user_id)
+    }
+
+    class FlashSaleService {
+        + create_flash_sale(product_id, dates, discount)
+        + get_active_flash_sales()
+        + get_flash_sale_discount_price(product_id)
+        + reserve_flash_sale_item()
+        + cleanup_expired_reservations()
+    }
+
+    class Notification {
+        + id: str
+        + user_id: int
+        + notification_type: str
+        + title: str
+        + message: str
+        + reference_id: int
+        + is_read: bool
+        + created_at: datetime
+    }
+
+    class FlashSale {
+        + flashSaleID: int
+        + productID: int
+        + title: str
+        + discount_percent: decimal
+        + start_time: datetime
+        + end_time: datetime
+        + max_quantity: int
+        + status: str
+        + is_active(): bool
+    }
+}
+
 package "Reliability & Observability" {
     class QualityTacticsManager {
         + check_throttling()
@@ -155,6 +210,7 @@ package "Reliability & Observability" {
         + render_admin_dashboard()
         + show_quality_scenarios()
         + show_rma_kpis()
+        + show_low_stock_alerts()
     }
 }
 
@@ -181,11 +237,24 @@ RefundService ..> Refund
 RefundService ..> Payment
 RefundService ..> ReturnsService : notifies
 
+' CP4 relationships
+HistoryService ..> Sale : queries
+HistoryService ..> ReturnRequest : queries
+LowStockAlertService ..> Product : monitors_stock
+NotificationService ..> Notification : manages
+FlashSaleService ..> FlashSale : manages
+FlashSaleService ..> Product : applies_discount
+Product ||--o{ FlashSale : may_have_sale
+User ||--o{ Notification : receives
+ReturnsService ..> NotificationService : publishes_status_change
+LowStockAlertService ..> ObservabilityDashboard : feeds_alerts
+
 QualityTacticsManager --> CircuitBreakerState : persists_state
 QualityTacticsManager --> OrderQueue : enqueues
 QualityTacticsManager --> SystemMetrics : emits_metrics
 ObservabilityDashboard --> SystemMetrics : queries
 ObservabilityDashboard --> QualityTacticsManager : surfaces_status
+ObservabilityDashboard --> LowStockAlertService : displays_alerts
 ReturnsService --> QualityTacticsManager : uses_metrics
 RefundService --> QualityTacticsManager : uses_circuit_breaker
 
@@ -197,19 +266,25 @@ note right of ReturnRequest
   APPROVED/REJECTED → REFUNDED
 end note
 
-note right of ObservabilityDashboard
-  Admin dashboard highlights:
-  - RMA rate & cycle time
-  - A.1 success rate & MTTR
-  - P.1 latency (p95)
-  - Buckets align with Config.DEFAULT_TIMEZONE
+note right of HistoryService
+  CP4 Feature 2.1
+  Layered abstraction for
+  filtering orders by status,
+  date range, and keyword search
 end note
 
-note right of RefundService
-  Refund routing
-  - Manual methods (cash / store credit) stay in-app
-  - Card/original methods go through PaymentService
-  - Reference stored for both paths
+note right of LowStockAlertService
+  CP4 Feature 2.2
+  Pub-Sub subscriber that monitors
+  inventory and publishes alerts
+  when stock < threshold (default: 5)
+end note
+
+note right of NotificationService
+  CP4 Feature 2.3
+  In-memory notification store
+  triggered by RMA status changes
+  via Pub-Sub pattern
 end note
 
 @enduml

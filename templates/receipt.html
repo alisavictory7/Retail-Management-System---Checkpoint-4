@@ -42,10 +42,27 @@
                     <tbody>
                         {% for item in sale.items %}
                         <tr class="border-b">
-                            <td class="py-3">{{ item.product.name }}</td>
+                            <td class="py-3">
+                                {{ item.product.name }}
+                                {% if item.discount_applied > 0 %}
+                                <div class="text-xs text-green-600 font-semibold">
+                                    💰 Saved ${{ "%.2f"|format(item.discount_applied) }}
+                                    {% if item.discount_applied / item.original_unit_price >= 0.20 %}
+                                    <span class="bg-red-500 text-white px-1 py-0.5 rounded ml-1">⚡ FLASH SALE</span>
+                                    {% endif %}
+                                </div>
+                                {% endif %}
+                            </td>
                             <td class="py-3 text-center">{{ item.quantity }}</td>
-                            <td class="py-3 text-right">${{ "%.2f"|format(item.original_unit_price) }}</td>
-                            <td class="py-3 text-right">${{ "%.2f"|format(item.subtotal) }}</td>
+                            <td class="py-3 text-right">
+                                {% if item.discount_applied > 0 %}
+                                <div class="line-through text-gray-400 text-sm">${{ "%.2f"|format(item.original_unit_price) }}</div>
+                                <div class="text-green-600 font-semibold">${{ "%.2f"|format(item.final_unit_price) }}</div>
+                                {% else %}
+                                ${{ "%.2f"|format(item.original_unit_price) }}
+                                {% endif %}
+                            </td>
+                            <td class="py-3 text-right font-semibold">${{ "%.2f"|format(item.subtotal) }}</td>
                         </tr>
                         {% endfor %}
                     </tbody>

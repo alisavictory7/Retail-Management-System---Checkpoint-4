@@ -23,6 +23,7 @@ from src.models import (
     SaleItem,
     Product,
     ReturnRequest,
+    ReturnItem,
     ReturnRequestStatus,
     Refund,
     RefundStatus,
@@ -178,7 +179,7 @@ class HistoryService:
             query = (
                 self.db.query(ReturnRequest)
                 .options(
-                    joinedload(ReturnRequest.return_items).joinedload("sale_item").joinedload("product"),
+                    joinedload(ReturnRequest.return_items).joinedload(ReturnItem.sale_item).joinedload(SaleItem.product),
                     joinedload(ReturnRequest.sale),
                     joinedload(ReturnRequest.refund),
                 )

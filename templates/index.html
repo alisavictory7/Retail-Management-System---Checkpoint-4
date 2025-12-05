@@ -43,11 +43,24 @@
 
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                         {% for product in products %}
-                        <div class="product-card border p-4 rounded-lg flex flex-col justify-between">
+                        <div class="product-card border p-4 rounded-lg flex flex-col justify-between {% if product.has_flash_sale %}border-red-500 border-2 bg-red-50{% endif %}">
                             <div>
+                                {% if product.has_flash_sale %}
+                                <div class="bg-red-500 text-white text-xs font-bold px-2 py-1 rounded inline-block mb-2">
+                                    ⚡ {{ product.flash_sale.title }} - {{ "%.0f"|format(product.flash_sale.discount_percent) }}% OFF
+                                </div>
+                                {% endif %}
                                 <h3 class="text-lg font-bold">{{ product.name }} <span class="text-sm font-normal text-gray-500">(ID: {{ product.productID }})</span></h3>
                                 <p class="text-sm text-gray-600 my-2">{{ product.description }}</p>
+                                {% if product.has_flash_sale %}
+                                <div class="flex items-center gap-2">
+                                    <p class="text-lg font-semibold text-red-600">${{ "%.2f"|format(product.flash_sale.discounted_price) }}</p>
+                                    <p class="text-sm text-gray-500 line-through">${{ "%.2f"|format(product.price) }}</p>
+                                </div>
+                                <p class="text-xs text-red-600 font-semibold">{{ product.flash_sale.available_quantity }} left at sale price!</p>
+                                {% else %}
                                 <p class="text-lg font-semibold">${{ "%.2f"|format(product.price) }}</p>
+                                {% endif %}
                                 <p class="text-sm {% if product.stock > 10 %}text-green-600{% elif product.stock > 0 %}text-yellow-600{% else %}text-red-600{% endif %}">
                                     {{ product.stock }} in stock
                                 </p>

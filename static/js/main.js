@@ -69,9 +69,10 @@ function renderCart(cartData) {
         const itemDiv = document.createElement('div');
         itemDiv.className = 'cart-item border-b py-3';
         const hasConflict = typeof item.available_stock === 'number' && item.quantity > item.available_stock;
+        const flashSaleBadge = item.is_flash_sale ? '<span class="text-xs bg-red-500 text-white px-2 py-0.5 rounded ml-1">⚡ FLASH SALE</span>' : '';
         itemDiv.innerHTML = `
             <div class="flex justify-between items-center">
-                <span class="font-semibold">${item.name}</span>
+                <span class="font-semibold">${item.name}${flashSaleBadge}</span>
                 <div class="flex items-center gap-2">
                     <input 
                         type="number" 
@@ -84,8 +85,8 @@ function renderCart(cartData) {
                     <button onclick="setCartQuantity(${item.product_id}, 0)" class="text-red-500 hover:text-red-700 font-bold ml-2">X</button>
                 </div>
             </div>
-            <div class="text-xs text-gray-500 mt-1">
-                Discount: $${item.discount_applied.toFixed(2)} | Fees: $${(item.shipping_fee + item.import_duty).toFixed(2)}
+            <div class="text-xs ${item.is_flash_sale ? 'text-red-600 font-semibold' : 'text-gray-500'} mt-1">
+                ${item.is_flash_sale ? '⚡ Flash Sale ' : ''}Discount: $${item.discount_applied.toFixed(2)} | Fees: $${(item.shipping_fee + item.import_duty).toFixed(2)}
             </div>
             ${hasConflict ? `
             <div class="mt-2 p-2 bg-yellow-100 border border-yellow-300 text-yellow-800 rounded">

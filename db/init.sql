@@ -245,6 +245,7 @@ ALTER TABLE "Payment" ALTER COLUMN "payment_type" DROP NOT NULL;
 CREATE TABLE "FlashSale" (
     "flashSaleID" SERIAL PRIMARY KEY,
     "productID" INTEGER REFERENCES "Product"("productID") NOT NULL,
+    "title" VARCHAR(255) NOT NULL DEFAULT 'Flash Sale',
     "start_time" TIMESTAMP WITH TIME ZONE NOT NULL,
     "end_time" TIMESTAMP WITH TIME ZONE NOT NULL,
     "discount_percent" DECIMAL(5, 2) NOT NULL,

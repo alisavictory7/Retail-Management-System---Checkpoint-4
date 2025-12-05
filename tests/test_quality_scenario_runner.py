@@ -4,20 +4,31 @@ Quality Scenario Test Runner
 
 This script runs all quality scenario tests and provides detailed reporting
 on whether each response measure is fulfilled or not.
+
+TODO: This test module requires database connectivity. When running in CI 
+environments without PostgreSQL, tests may be skipped gracefully.
 """
 
 import pytest
 import time
 import sys
+import os
 import json
 from datetime import datetime, timezone
 from pathlib import Path
 
 # Add src to path for imports
-sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
+sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from src.tactics.manager import QualityTacticsManager
-from src.database import SessionLocal
+try:
+    from src.tactics.manager import QualityTacticsManager
+    from src.database import SessionLocal
+    IMPORTS_AVAILABLE = True
+except ImportError as e:
+    IMPORTS_AVAILABLE = False
+    import_error = str(e)
+    QualityTacticsManager = None
+    SessionLocal = None
 
 
 class QualityScenarioReporter:

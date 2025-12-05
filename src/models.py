@@ -645,6 +645,7 @@ class FlashSale(Base):
     __tablename__ = 'FlashSale'
     flashSaleID = Column(Integer, primary_key=True, autoincrement=True)
     productID = Column(Integer, ForeignKey('Product.productID'), nullable=False)
+    _title = Column('title', String(255), nullable=False, default='Flash Sale')
     _start_time = Column('start_time', DateTime, nullable=False)
     _end_time = Column('end_time', DateTime, nullable=False)
     _discount_percent = Column('discount_percent', Numeric(5, 2), nullable=False)
@@ -660,6 +661,14 @@ class FlashSale(Base):
     @start_time.setter
     def start_time(self, value):
         self._start_time = value
+
+    @property
+    def title(self):
+        return self._title
+    
+    @title.setter
+    def title(self, value):
+        self._title = value
     
     @property
     def end_time(self):

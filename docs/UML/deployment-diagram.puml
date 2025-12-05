@@ -1,4 +1,4 @@
-@startuml Deployment Diagram - Dockerized Client + Database Architecture
+@startuml Deployment Diagram - Dockerized Client + Database Architecture (CP4)
 
 !theme plain
 skinparam componentStyle rectangle
@@ -24,7 +24,15 @@ node "Docker Host" {
             component "Flask Application\n(main.py + blueprints)" as Flask
             component "Returns & Refunds Module\n(services + templates)" as ReturnsModule
             component "Quality Tactics Manager" as QTM
-            component "Observability Dashboard\n(/admin/dashboard)" as Dashboard
+            component "Unified Admin Dashboard\n(/admin/dashboard)" as Dashboard
+            component "Manage Store Portal\n(/admin/manage-store)" as ManageStore
+            
+            component "CP4 Feature Services" as CP4Services #E8F5E9 {
+                component "HistoryService\n(Order Filtering)" as HistorySvc
+                component "LowStockAlertService\n(Pub-Sub)" as LowStockSvc
+                component "NotificationService\n(RMA Updates)" as NotificationSvc
+                component "FlashSaleService\n(Promotions)" as FlashSaleSvc
+            }
         }
 
         node "db\n(PostgreSQL 15)" as DbContainer {
@@ -45,13 +53,20 @@ node "Monitoring Tooling" {
 }
 
 CustomerBrowser --> Flask : HTTPS\nstorefront & checkout
+CustomerBrowser --> HistorySvc : /order-history
+CustomerBrowser --> NotificationSvc : /api/notifications
 AdminBrowser --> Dashboard : HTTPS\nadmin console
+AdminBrowser --> LowStockSvc : /api/admin/low-stock
 Flask --> ReturnsModule : invoke RMA workflow
 Flask --> QTM : apply tactics
+Flask --> CP4Services : CP4 feature routes
 QTM --> RetailDB : read/write\nCircuitBreakerState\nOrderQueue
 ReturnsModule --> RetailDB : persist RMA entities
+ReturnsModule --> NotificationSvc : publish status changes
 Dashboard --> MetricsEndpoint : poll JSON
+Dashboard --> LowStockSvc : display alerts
 Flask --> RetailDB : SQLAlchemy ORM
+HistorySvc --> RetailDB : query history
 RetailDB --> Volume : data files
 
 Flask --> PaymentGateway : Refund / charge
@@ -65,6 +80,7 @@ note right of WebContainer
   - Returns blueprint + services
   - Observability middleware
   - Quality tactics manager
+  - CP4 Feature Services (in-memory)
 end note
 
 note right of DbContainer
@@ -74,12 +90,28 @@ note right of DbContainer
   between compose restarts.
 end note
 
+note right of CP4Services
+  Checkpoint 4 Features:
+  - Order History with filters (2.1)
+  - Low Stock Alerts (2.2)
+  - RMA Notifications (2.3)
+  - All use Pub-Sub / Layers patterns
+end note
+
 note right of Dashboard
-  Admin dashboard surfaces:
-  - RMA rate & cycle time
-  - Scenario A.1 and P.1 KPIs
-  - HTTP latency & recent events
-  - Metrics bucketed using Config.DEFAULT_TIMEZONE
+  Unified Admin Dashboard:
+  - Portal cards (Users, Store, Returns)
+  - Business metrics & KPIs
+  - Scenario A.1 and P.1 monitoring
+  - HTTP latency & events
+end note
+
+note right of ManageStore
+  Manage Store Portal:
+  - Product CRUD operations
+  - Low stock alerts (Pub-Sub)
+  - Flash sale management
+  - Tabbed interface
 end note
 
 @enduml

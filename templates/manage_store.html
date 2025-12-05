@@ -1,0 +1,425 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Manage Store - Retail Management System</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+        body { font-family: 'Inter', sans-serif; }
+        .tab-active { border-bottom: 2px solid #10b981; color: #10b981; }
+    </style>
+</head>
+<body class="bg-gradient-to-br from-slate-50 via-gray-50 to-slate-100 text-gray-900 min-h-screen">
+    {% include 'partials/navbar.html' %}
+
+    <main class="container mx-auto px-4 py-8">
+        <!-- Header -->
+        <div class="flex items-center justify-between mb-8">
+            <div>
+                <h1 class="text-3xl font-bold text-gray-900">Manage Store</h1>
+                <p class="text-gray-500 mt-1">Products, inventory alerts, and flash sales</p>
+            </div>
+            <a href="{{ url_for('admin_dashboard') }}" class="text-gray-500 hover:text-gray-700 flex items-center gap-2">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path>
+                </svg>
+                Back to Dashboard
+            </a>
+        </div>
+
+        <!-- Quick Stats -->
+        <section class="grid gap-4 md:grid-cols-4 mb-8">
+            <div class="bg-white border border-gray-100 p-5 rounded-2xl shadow-sm">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-xl bg-emerald-100 flex items-center justify-center">
+                        <svg class="w-5 h-5 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"></path>
+                        </svg>
+                    </div>
+                    <div>
+                        <p class="text-2xl font-bold text-gray-900">{{ products|length }}</p>
+                        <p class="text-sm text-gray-500">Total Products</p>
+                    </div>
+                </div>
+            </div>
+            <div class="bg-white border border-gray-100 p-5 rounded-2xl shadow-sm">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-xl {{ 'bg-red-100' if low_stock_summary.critical_count > 0 else 'bg-gray-100' }} flex items-center justify-center">
+                        <svg class="w-5 h-5 {{ 'text-red-600' if low_stock_summary.critical_count > 0 else 'text-gray-400' }}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
+                        </svg>
+                    </div>
+                    <div>
+                        <p class="text-2xl font-bold {{ 'text-red-600' if low_stock_summary.critical_count > 0 else 'text-gray-900' }}">{{ low_stock_summary.critical_count }}</p>
+                        <p class="text-sm text-gray-500">Critical Stock</p>
+                    </div>
+                </div>
+            </div>
+            <div class="bg-white border border-gray-100 p-5 rounded-2xl shadow-sm">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-xl {{ 'bg-amber-100' if low_stock_summary.warning_count > 0 else 'bg-gray-100' }} flex items-center justify-center">
+                        <svg class="w-5 h-5 {{ 'text-amber-600' if low_stock_summary.warning_count > 0 else 'text-gray-400' }}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                        </svg>
+                    </div>
+                    <div>
+                        <p class="text-2xl font-bold {{ 'text-amber-600' if low_stock_summary.warning_count > 0 else 'text-gray-900' }}">{{ low_stock_summary.warning_count }}</p>
+                        <p class="text-sm text-gray-500">Low Stock Warning</p>
+                    </div>
+                </div>
+            </div>
+            <div class="bg-white border border-gray-100 p-5 rounded-2xl shadow-sm">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-xl bg-rose-100 flex items-center justify-center">
+                        <svg class="w-5 h-5 text-rose-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
+                        </svg>
+                    </div>
+                    <div>
+                        <p class="text-2xl font-bold text-rose-600">{{ active_flash_sales|length }}</p>
+                        <p class="text-sm text-gray-500">Active Flash Sales</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Tabs Navigation -->
+        <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+            <div class="border-b border-gray-100">
+                <nav class="flex">
+                    <button onclick="showTab('products')" id="tab-products" class="tab-btn tab-active px-6 py-4 text-sm font-medium hover:text-emerald-600 transition">
+                        Products
+                    </button>
+                    <button onclick="showTab('alerts')" id="tab-alerts" class="tab-btn px-6 py-4 text-sm font-medium text-gray-500 hover:text-emerald-600 transition flex items-center gap-2">
+                        Stock Alerts
+                        {% if low_stock_summary.total_alerts > 0 %}
+                        <span class="bg-red-500 text-white text-xs px-2 py-0.5 rounded-full">{{ low_stock_summary.total_alerts }}</span>
+                        {% endif %}
+                    </button>
+                    <button onclick="showTab('flash')" id="tab-flash" class="tab-btn px-6 py-4 text-sm font-medium text-gray-500 hover:text-emerald-600 transition">
+                        Flash Sales
+                    </button>
+                </nav>
+            </div>
+
+            <!-- Products Tab -->
+            <div id="panel-products" class="tab-panel p-6">
+                <div class="flex items-center justify-between mb-6">
+                    <h3 class="text-lg font-semibold text-gray-900">Product Inventory</h3>
+                    <button onclick="toggleAddProductForm()" class="bg-emerald-500 text-white px-4 py-2 rounded-xl text-sm font-medium hover:bg-emerald-600 transition flex items-center gap-2">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
+                        </svg>
+                        Add Product
+                    </button>
+                </div>
+
+                <!-- Add Product Form (Hidden by default) -->
+                <div id="add-product-form" class="hidden mb-6 bg-gray-50 rounded-xl p-6">
+                    <h4 class="text-md font-semibold text-gray-900 mb-4">Add New Product</h4>
+                    <form method="POST" action="{{ url_for('admin_products') }}" class="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                        <input type="hidden" name="action" value="add">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Product Name</label>
+                            <input type="text" name="name" required class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-emerald-500 focus:border-transparent">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Price ($)</label>
+                            <input type="number" name="price" step="0.01" min="0" required class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-emerald-500 focus:border-transparent">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Stock</label>
+                            <input type="number" name="stock" min="0" required class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-emerald-500 focus:border-transparent">
+                        </div>
+                        <div class="md:col-span-2 lg:col-span-3">
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Description</label>
+                            <textarea name="description" rows="2" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-emerald-500 focus:border-transparent"></textarea>
+                        </div>
+                        <div class="md:col-span-2 lg:col-span-3 flex justify-end gap-2">
+                            <button type="button" onclick="toggleAddProductForm()" class="px-4 py-2 text-sm text-gray-600 hover:text-gray-900">Cancel</button>
+                            <button type="submit" class="bg-emerald-500 text-white px-6 py-2 rounded-lg text-sm font-medium hover:bg-emerald-600">Save Product</button>
+                        </div>
+                    </form>
+                </div>
+
+                {% if message %}
+                <div class="mb-4 p-4 rounded-xl {{ 'bg-green-50 text-green-800 border border-green-200' if 'success' in message|lower or 'added' in message|lower or 'updated' in message|lower or 'deleted' in message|lower else 'bg-red-50 text-red-800 border border-red-200' }}">
+                    {{ message }}
+                </div>
+                {% endif %}
+
+                <div class="overflow-x-auto">
+                    <table class="w-full text-sm">
+                        <thead class="bg-gray-50 text-gray-500 uppercase text-xs">
+                            <tr>
+                                <th class="px-4 py-3 text-left rounded-l-lg">Product</th>
+                                <th class="px-4 py-3 text-right">Price</th>
+                                <th class="px-4 py-3 text-center">Stock</th>
+                                <th class="px-4 py-3 text-center">Status</th>
+                                <th class="px-4 py-3 text-center rounded-r-lg">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-gray-100">
+                            {% for product in products %}
+                            <tr class="hover:bg-gray-50" id="product-row-{{ product.productID }}">
+                                <td class="px-4 py-4">
+                                    <div>
+                                        <p class="font-medium text-gray-900">{{ product.name }}</p>
+                                        <p class="text-xs text-gray-500">ID: {{ product.productID }}</p>
+                                    </div>
+                                </td>
+                                <td class="px-4 py-4 text-right font-medium text-gray-900">${{ "%.2f"|format(product.price) }}</td>
+                                <td class="px-4 py-4 text-center">
+                                    <span class="font-bold {{ 'text-red-600' if product.stock == 0 else 'text-amber-600' if product.stock < 10 else 'text-gray-900' }}">
+                                        {{ product.stock }}
+                                    </span>
+                                </td>
+                                <td class="px-4 py-4 text-center">
+                                    {% if product.stock == 0 %}
+                                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">Out of Stock</span>
+                                    {% elif product.stock < 10 %}
+                                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800">Low Stock</span>
+                                    {% else %}
+                                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-800">In Stock</span>
+                                    {% endif %}
+                                </td>
+                                <td class="px-4 py-4 text-center">
+                                    <div class="flex items-center justify-center gap-2">
+                                        <a href="{{ url_for('admin_products') }}?edit={{ product.productID }}" class="text-blue-500 hover:text-blue-700">
+                                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path>
+                                            </svg>
+                                        </a>
+                                        <form method="POST" action="{{ url_for('admin_products') }}" class="inline" onsubmit="return confirm('Delete this product?');">
+                                            <input type="hidden" name="action" value="delete">
+                                            <input type="hidden" name="product_id" value="{{ product.productID }}">
+                                            <button type="submit" class="text-red-500 hover:text-red-700">
+                                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+                                                </svg>
+                                            </button>
+                                        </form>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% else %}
+                            <tr><td class="px-4 py-8 text-center text-gray-400" colspan="5">No products found</td></tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Stock Alerts Tab -->
+            <div id="panel-alerts" class="tab-panel p-6 hidden">
+                <div class="flex items-center justify-between mb-6">
+                    <h3 class="text-lg font-semibold text-gray-900">Low Stock Alerts</h3>
+                    <p class="text-sm text-gray-500">Threshold: {{ low_stock_summary.threshold }} units</p>
+                </div>
+
+                {% if low_stock_summary.alerts %}
+                <div class="space-y-3">
+                    {% for alert in low_stock_summary.alerts %}
+                    <div class="flex items-center justify-between p-4 rounded-xl {{ 'bg-red-50 border border-red-200' if alert.severity == 'critical' else 'bg-amber-50 border border-amber-200' if alert.severity == 'warning' else 'bg-orange-50 border border-orange-200' }}">
+                        <div class="flex items-center gap-4">
+                            <div class="w-10 h-10 rounded-xl {{ 'bg-red-100' if alert.severity == 'critical' else 'bg-amber-100' }} flex items-center justify-center">
+                                <svg class="w-5 h-5 {{ 'text-red-600' if alert.severity == 'critical' else 'text-amber-600' }}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
+                                </svg>
+                            </div>
+                            <div>
+                                <p class="font-medium text-gray-900">{{ alert.product_name }}</p>
+                                <p class="text-sm text-gray-500">Product ID: {{ alert.product_id }}</p>
+                            </div>
+                        </div>
+                        <div class="text-right">
+                            <p class="text-2xl font-bold {{ 'text-red-600' if alert.current_stock == 0 else 'text-amber-600' }}">{{ alert.current_stock }}</p>
+                            <p class="text-xs text-gray-500">units remaining</p>
+                        </div>
+                        <div>
+                            <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium {{ 'bg-red-200 text-red-800' if alert.severity == 'critical' else 'bg-amber-200 text-amber-800' }}">
+                                {{ alert.severity|capitalize }}
+                            </span>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <div class="text-center py-12">
+                    <svg class="w-16 h-16 text-emerald-300 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                    </svg>
+                    <h4 class="text-lg font-medium text-gray-900 mb-1">All Clear!</h4>
+                    <p class="text-gray-500">All products are well-stocked above the {{ low_stock_summary.threshold }}-unit threshold</p>
+                </div>
+                {% endif %}
+            </div>
+
+            <!-- Flash Sales Tab -->
+            <div id="panel-flash" class="tab-panel p-6 hidden">
+                <div class="flex items-center justify-between mb-6">
+                    <h3 class="text-lg font-semibold text-gray-900">Flash Sales Management</h3>
+                    <button onclick="toggleFlashSaleForm()" class="bg-rose-500 text-white px-4 py-2 rounded-xl text-sm font-medium hover:bg-rose-600 transition flex items-center gap-2">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
+                        </svg>
+                        Create Flash Sale
+                    </button>
+                </div>
+
+                <!-- Create Flash Sale Form (Hidden by default) -->
+                <div id="flash-sale-form" class="hidden mb-6 bg-gradient-to-r from-rose-50 to-orange-50 rounded-xl p-6 border border-rose-200">
+                    <h4 class="text-md font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                        <svg class="w-5 h-5 text-rose-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
+                        </svg>
+                        Create New Flash Sale
+                    </h4>
+                    <form method="POST" action="{{ url_for('admin_flash_sales') }}" class="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Sale Title</label>
+                            <input type="text" name="title" placeholder="e.g., Black Friday Deal" required class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-rose-500 focus:border-transparent">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Product</label>
+                            <select name="product_id" required class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-rose-500 focus:border-transparent">
+                                {% for product in products %}
+                                <option value="{{ product.productID }}">{{ product.name }} (${{ "%.2f"|format(product.price) }})</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Discount (%)</label>
+                            <input type="number" name="discount_percent" min="1" max="90" value="20" required class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-rose-500 focus:border-transparent">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Start Date</label>
+                            <input type="date" name="start_date" required class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-rose-500 focus:border-transparent">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Start Time</label>
+                            <input type="time" name="start_time" value="00:00" required class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-rose-500 focus:border-transparent">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Max Quantity</label>
+                            <input type="number" name="max_quantity" min="1" value="50" required class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-rose-500 focus:border-transparent">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">End Date</label>
+                            <input type="date" name="end_date" required class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-rose-500 focus:border-transparent">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">End Time</label>
+                            <input type="time" name="end_time" value="23:59" required class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-rose-500 focus:border-transparent">
+                        </div>
+                        <div class="flex items-end">
+                            <button type="submit" class="w-full bg-gradient-to-r from-rose-500 to-orange-500 text-white px-6 py-2 rounded-lg text-sm font-medium hover:opacity-90">
+                                🚀 Launch Flash Sale
+                            </button>
+                        </div>
+                    </form>
+                </div>
+
+                {% if flash_sale_message %}
+                <div class="mb-4 p-4 rounded-xl {{ 'bg-green-50 text-green-800 border border-green-200' if 'success' in flash_sale_message|lower or 'created' in flash_sale_message|lower else 'bg-red-50 text-red-800 border border-red-200' }}">
+                    {{ flash_sale_message }}
+                </div>
+                {% endif %}
+
+                <!-- Active Flash Sales -->
+                {% if active_flash_sales %}
+                <div class="mb-6">
+                    <h4 class="text-sm font-medium text-gray-500 uppercase mb-3">Active Sales</h4>
+                    <div class="grid gap-4 md:grid-cols-2">
+                        {% for sale in active_flash_sales %}
+                        <div class="bg-gradient-to-r from-rose-50 to-orange-50 rounded-xl p-4 border border-rose-200">
+                            <div class="flex items-center justify-between mb-3">
+                                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-rose-500 text-white">
+                                    ⚡ LIVE
+                                </span>
+                                <span class="text-lg font-bold text-rose-600">-{{ '%.0f'|format(sale.discount_percent) }}%</span>
+                            </div>
+                            <h5 class="font-semibold text-gray-900">{{ sale.title }}</h5>
+                            <p class="text-sm text-gray-600">{{ sale.product.name if sale.product else 'N/A' }}</p>
+                            <div class="mt-3 flex items-center justify-between text-xs text-gray-500">
+                                <span>Ends: {{ sale.end_time.strftime('%Y-%m-%d %H:%M') if sale.end_time else 'N/A' }}</span>
+                                <span>{{ sale.get_available_quantity() if sale.get_available_quantity else 0 }} left</span>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endif %}
+
+                <!-- All Flash Sales -->
+                <h4 class="text-sm font-medium text-gray-500 uppercase mb-3">All Flash Sales</h4>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-sm">
+                        <thead class="bg-gray-50 text-gray-500 uppercase text-xs">
+                            <tr>
+                                <th class="px-4 py-3 text-left rounded-l-lg">Title</th>
+                                <th class="px-4 py-3 text-left">Product</th>
+                                <th class="px-4 py-3 text-center">Discount</th>
+                                <th class="px-4 py-3 text-center">Status</th>
+                                <th class="px-4 py-3 text-center rounded-r-lg">Duration</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-gray-100">
+                            {% for sale in flash_sales %}
+                            <tr class="hover:bg-gray-50">
+                                <td class="px-4 py-4 font-medium text-gray-900">{{ sale.title }}</td>
+                                <td class="px-4 py-4 text-gray-600">{{ sale.product.name if sale.product else 'N/A' }}</td>
+                                <td class="px-4 py-4 text-center font-bold text-rose-600">{{ '%.0f'|format(sale.discount_percent) }}%</td>
+                                <td class="px-4 py-4 text-center">
+                                    {% if sale.status == 'active' and sale.is_active() %}
+                                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-800">Active</span>
+                                    {% elif sale.status == 'active' %}
+                                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">Scheduled</span>
+                                    {% else %}
+                                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">{{ sale.status|capitalize }}</span>
+                                    {% endif %}
+                                </td>
+                                <td class="px-4 py-4 text-center text-xs text-gray-500">
+                                    {{ sale.start_time.strftime('%m/%d %H:%M') if sale.start_time else '' }} → {{ sale.end_time.strftime('%m/%d %H:%M') if sale.end_time else '' }}
+                                </td>
+                            </tr>
+                            {% else %}
+                            <tr><td class="px-4 py-8 text-center text-gray-400" colspan="5">No flash sales created yet</td></tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        function showTab(tabName) {
+            // Hide all panels
+            document.querySelectorAll('.tab-panel').forEach(panel => panel.classList.add('hidden'));
+            // Remove active state from all tabs
+            document.querySelectorAll('.tab-btn').forEach(btn => {
+                btn.classList.remove('tab-active');
+                btn.classList.add('text-gray-500');
+            });
+            // Show selected panel
+            document.getElementById('panel-' + tabName).classList.remove('hidden');
+            // Activate selected tab
+            const activeTab = document.getElementById('tab-' + tabName);
+            activeTab.classList.add('tab-active');
+            activeTab.classList.remove('text-gray-500');
+        }
+
+        function toggleAddProductForm() {
+            document.getElementById('add-product-form').classList.toggle('hidden');
+        }
+
+        function toggleFlashSaleForm() {
+            document.getElementById('flash-sale-form').classList.toggle('hidden');
+        }
+    </script>
+</body>
+</html>
+

@@ -22,7 +22,7 @@ from werkzeug.security import generate_password_hash, check_password_hash
 
 from src.config import Config
 from src.database import get_db, close_db, engine
-from src.models import Product, User, Sale, SaleItem, Payment, Cash, Card, FailedPaymentLog, Base
+from src.models import Product, User, Sale, SaleItem, Payment, Cash, Card, FailedPaymentLog, Base, FlashSale, FlashSaleReservation, ReturnRequest
 from src.tactics.manager import QualityTacticsManager
 from src.blueprints.returns import returns_bp
 from src.observability import (
@@ -46,6 +46,7 @@ from src.observability.logging_config import ensure_request_id
 from src.services.history_service import HistoryService
 from src.services.low_stock_alert_service import LowStockAlertService
 from src.services.notification_service import NotificationService
+from src.services.flash_sale_service import FlashSaleService
 
 app = Flask(__name__, template_folder='../templates', static_folder='../static')
 Config.configure_app(app)
@@ -95,18 +96,27 @@ def inject_nav_context():
     
     # Checkpoint 4: Get notification count for the navbar badge
     notification_count = 0
+    active_flash_sales = []
     if user:
         try:
             notification_service = NotificationService()
             notification_count = notification_service.get_unread_count(user.userID)
         except Exception:
             pass  # Fail silently if notification service unavailable
+    # Active flash sale banner (visible to all)
+    try:
+        db = get_db()
+        flash_service = FlashSaleService(db)
+        active_flash_sales = flash_service.get_active_flash_sales()
+    except Exception:
+        active_flash_sales = []
     
     return {
         "current_user": user,
         "is_admin": is_admin_user(),
         "show_storefront_link": True,
         "notification_count": notification_count,
+        "active_flash_sales": active_flash_sales,
     }
 
 @app.before_request
@@ -177,18 +187,70 @@ def get_or_create_cart_sale(user_id, db):
         db.refresh(cart_sale)
     return cart_sale
 
+def get_products_with_flash_sales(db):
+    """Get all products enriched with flash sale information."""
+    products = db.query(Product).all()
+    
+    # Get active flash sales
+    flash_service = FlashSaleService(db)
+    active_flash_sales = flash_service.get_active_flash_sales()
+    
+    # Create a map of product_id to flash sale for easy lookup
+    flash_sale_map = {fs.productID: fs for fs in active_flash_sales}
+    
+    # Enrich products with flash sale info
+    products_with_flash = []
+    for product in products:
+        product_dict = {
+            'productID': product.productID,
+            'name': product.name,
+            'description': product.description,
+            'price': float(product.price),
+            'stock': product.stock,
+            'has_flash_sale': product.productID in flash_sale_map
+        }
+        
+        if product_dict['has_flash_sale']:
+            flash_sale = flash_sale_map[product.productID]
+            discount_percent = float(flash_sale.discount_percent)
+            discounted_price = float(product.price) * (1 - discount_percent / 100)
+            product_dict['flash_sale'] = {
+                'title': flash_sale.title,
+                'discount_percent': discount_percent,
+                'discounted_price': discounted_price,
+                'available_quantity': flash_sale.get_available_quantity()
+            }
+        
+        products_with_flash.append(product_dict)
+    
+    return products_with_flash
+
 def get_cart_items(user_id, db):
     """Get all items in the user's cart from database."""
     cart_sale = get_or_create_cart_sale(user_id, db)
     cart_items = []
     grand_total = 0.0
     
+    # Initialize flash sale service to check for active flash sales
+    flash_service = FlashSaleService(db)
+    
     for sale_item in cart_sale.items:
         product = db.query(Product).filter_by(productID=sale_item.productID).first()
         if product:
-            # Calculate current values
-            discounted_unit_price = product.get_discounted_unit_price()
-            subtotal = product.get_subtotal_for_quantity(sale_item.quantity)
+            # Check if product has an active flash sale
+            flash_sale_price = flash_service.get_flash_sale_discount_price(product.productID)
+            
+            if flash_sale_price is not None:
+                # Apply flash sale discount
+                discounted_unit_price = flash_sale_price
+                is_flash_sale = True
+            else:
+                # Use regular product discount
+                discounted_unit_price = product.get_discounted_unit_price()
+                is_flash_sale = False
+            
+            # Calculate totals
+            subtotal = discounted_unit_price * sale_item.quantity
             shipping_fee = product.get_shipping_fees(sale_item.quantity)
             import_duty = product.get_import_duty(sale_item.quantity)
             
@@ -205,7 +267,8 @@ def get_cart_items(user_id, db):
                 'discount_applied': (float(product.price) - discounted_unit_price) * sale_item.quantity,
                 'shipping_fee': shipping_fee,
                 'import_duty': import_duty,
-                'available_stock': product.stock
+                'available_stock': product.stock,
+                'is_flash_sale': is_flash_sale
             })
     
     return {
@@ -356,7 +419,8 @@ def index():
         session.clear()
         return redirect(url_for('login'))
     
-    products = db.query(Product).all()
+    # Get products with flash sale information
+    products_with_flash = get_products_with_flash_sales(db)
     
     # Get cart from database instead of session
     cart = get_cart_items(session['user_id'], db)
@@ -368,7 +432,7 @@ def index():
     recent_sales = db.query(Sale).filter_by(userID=session['user_id']).filter(Sale._status != 'cart').order_by(desc(Sale._sale_date)).limit(5).all()
     username = user.username
     
-    return render_template('index.html', products=products, cart=cart, username=username, recent_sales=recent_sales, cart_update_message=cart_update_message)
+    return render_template('index.html', products=products_with_flash, cart=cart, username=username, recent_sales=recent_sales, cart_update_message=cart_update_message)
 
 @app.route('/register', methods=['GET', 'POST'])
 def register():
@@ -511,7 +575,7 @@ def checkout():
     if not cart.get('items'):
         # Return to index with error message instead of silent redirect
         user = db.query(User).filter_by(userID=session['user_id']).first()
-        products = db.query(Product).all()
+        products = get_products_with_flash_sales(db)
         recent_sales = db.query(Sale).filter_by(userID=session['user_id']).filter(Sale._status != 'cart').order_by(desc(Sale._sale_date)).limit(5).all()
         msg = "Cannot complete purchase: Your cart is empty. Please add items to your cart first."
         return render_template('index.html', products=products, cart=cart, username=user.username, recent_sales=recent_sales, cart_update_message=msg), 400
@@ -525,7 +589,7 @@ def checkout():
     throttled, throttle_msg = quality_manager.check_throttling(request_data)
     if not throttled:
         user = db.query(User).filter_by(userID=session['user_id']).first()
-        products = db.query(Product).all()
+        products = get_products_with_flash_sales(db)
         recent_sales = db.query(Sale).filter_by(userID=session['user_id']).filter(Sale._status != 'cart').order_by(desc(Sale._sale_date)).limit(5).all()
         msg = f"System is busy. Please try again in a moment. ({throttle_msg})"
         return render_template('index.html', products=products, cart=cart, username=user.username, recent_sales=recent_sales, cart_update_message=msg), 429
@@ -545,7 +609,7 @@ def checkout():
                 # Get fresh cart from database
                 cart = get_cart_items(session['user_id'], db)
                 user = db.query(User).filter_by(userID=session['user_id']).first()
-                products = db.query(Product).all()
+                products = get_products_with_flash_sales(db)
                 recent_sales = db.query(Sale).filter_by(userID=session['user_id']).filter(Sale._status != 'cart').order_by(desc(Sale._sale_date)).limit(5).all()
                 msg = f"Checkout failed: stock for '{item['name']}' changed: Only {product.stock if product else 0} left. All stock levels updated and payment rolled back."
                 return render_template('index.html', products=products, cart=cart, username=user.username, recent_sales=recent_sales, cart_update_message=msg), 409
@@ -588,7 +652,7 @@ def checkout():
                 # Get fresh cart from database
                 cart_local = get_cart_items(session['user_id'], db)
                 user_local = db.query(User).filter_by(userID=session['user_id']).first()
-                products_local = db.query(Product).all()
+                products_local = get_products_with_flash_sales(db)
                 recent_local = db.query(Sale).filter_by(userID=session['user_id']).filter(Sale._status != 'cart').order_by(desc(Sale._sale_date)).limit(5).all()
                 return render_template('index.html', products=products_local, cart=cart_local, username=user_local.username, recent_sales=recent_local, cart_update_message=msg), 400
 
@@ -650,7 +714,7 @@ def checkout():
                 # Get fresh cart from database
                 cart = get_cart_items(session['user_id'], db)
                 user = db.query(User).filter_by(userID=session['user_id']).first()
-                products = db.query(Product).all()
+                products = get_products_with_flash_sales(db)
                 recent_sales = db.query(Sale).filter_by(userID=session['user_id']).filter(Sale._status != 'cart').order_by(desc(Sale._sale_date)).limit(5).all()
                 product, item = conflict_item
                 msg = f"Checkout failed: stock for '{product.name}' changed: Only {product.stock} left. All stock levels updated and payment rolled back."
@@ -664,12 +728,24 @@ def checkout():
             for old_item in original_cart_items:
                 db.delete(old_item)
             
+            # Initialize flash sale service to apply flash sale discounts
+            flash_service = FlashSaleService(db)
+            
             for item in cart['items']:
                 product = product_map[item['product_id']]
                 quantity = item['quantity']
 
-                final_unit_price = product.get_discounted_unit_price()
-                subtotal = product.get_subtotal_for_quantity(quantity)
+                # Check if product has an active flash sale
+                flash_sale_price = flash_service.get_flash_sale_discount_price(product.productID)
+                
+                if flash_sale_price is not None:
+                    # Apply flash sale discount
+                    final_unit_price = flash_sale_price
+                else:
+                    # Use regular product discount
+                    final_unit_price = product.get_discounted_unit_price()
+                
+                subtotal = final_unit_price * quantity
                 discount_applied = (float(product.price) - final_unit_price) * quantity
                 shipping_fee_applied = product.get_shipping_fees(quantity)
                 import_duty_applied = product.get_import_duty(quantity)
@@ -768,7 +844,7 @@ def checkout():
                 session['cart'] = {'items': [], 'grand_total': 0.0}
 
                 user = db.query(User).filter_by(userID=session['user_id']).first()
-                products = db.query(Product).all()
+                products = get_products_with_flash_sales(db)
                 recent_sales = (
                     db.query(Sale)
                     .filter_by(userID=session['user_id'])
@@ -814,7 +890,7 @@ def checkout():
 
             cart = get_cart_items(session['user_id'], db)
             user = db.query(User).filter_by(userID=session['user_id']).first()
-            products = db.query(Product).all()
+            products = get_products_with_flash_sales(db)
             recent_sales = (
                 db.query(Sale)
                 .filter_by(userID=session['user_id'])
@@ -1018,6 +1094,23 @@ def admin_dashboard():
     low_stock_service = LowStockAlertService(db)
     low_stock_summary = low_stock_service.get_alert_summary()
     
+    # Get additional data for dashboard portal cards
+    users = db.query(User).all()
+    products = db.query(Product).all()
+    flash_service = FlashSaleService(db)
+    flash_sales = flash_service.get_active_flash_sales()
+    
+    # Get return request counts by status
+    pending_returns = db.query(ReturnRequest).filter(
+        ReturnRequest.status.in_(['PENDING_AUTHORIZATION', 'PENDING_CUSTOMER_INFO'])
+    ).count()
+    in_transit_returns = db.query(ReturnRequest).filter_by(status='IN_TRANSIT').count()
+    inspection_returns = db.query(ReturnRequest).filter(
+        ReturnRequest.status.in_(['RECEIVED', 'UNDER_INSPECTION'])
+    ).count()
+    
+    user = db.query(User).filter_by(userID=session.get('user_id')).first()
+    
     return render_template(
         'admin_dashboard.html',
         metrics=metrics,
@@ -1030,6 +1123,13 @@ def admin_dashboard():
         scenario_metrics=scenario_metrics,
         error_rate=error_rate,
         low_stock_summary=low_stock_summary,
+        users=users,
+        products=products,
+        flash_sales=flash_sales,
+        pending_returns=pending_returns,
+        in_transit_returns=in_transit_returns,
+        inspection_returns=inspection_returns,
+        username=user.username if user else 'Admin',
     )
 
 
@@ -1129,6 +1229,169 @@ def admin_users():
         super_admin_username=Config.SUPER_ADMIN_USERNAME,
     )
 
+
+# ---------------------------------------------
+# Admin: Product Management
+# ---------------------------------------------
+@app.route('/admin/products', methods=['GET', 'POST'])
+def admin_products():
+    """Allow admins to add, edit, and delete products."""
+    if not is_admin_user():
+        abort(403)
+
+    db = get_db()
+    message = None
+    error = None
+
+    if request.method == 'POST':
+        action = request.form.get('action', '').lower()
+        try:
+            if action == 'create':
+                name = (request.form.get('name') or '').strip()
+                description = (request.form.get('description') or '').strip()
+                price = float(request.form.get('price', '0'))
+                stock = int(request.form.get('stock', '0'))
+                if not name:
+                    raise ValueError("Product name is required.")
+                if price < 0:
+                    raise ValueError("Price must be non-negative.")
+                if stock < 0:
+                    raise ValueError("Stock must be non-negative.")
+                product = Product(name=name, description=description, price=price, stock=stock)
+                db.add(product)
+                db.commit()
+                message = f"Product '{name}' created."
+            elif action == 'update':
+                product_id = int(request.form.get('product_id', '0'))
+                product = db.query(Product).filter_by(productID=product_id).first()
+                if not product:
+                    raise ValueError("Product not found.")
+                name = (request.form.get('name') or product.name).strip()
+                description = (request.form.get('description') or '').strip()
+                price = float(request.form.get('price', product.price))
+                stock = int(request.form.get('stock', product.stock))
+                if not name:
+                    raise ValueError("Product name is required.")
+                if price < 0 or stock < 0:
+                    raise ValueError("Price and stock must be non-negative.")
+                product.name = name
+                product.description = description
+                product.price = price
+                product.stock = stock
+                db.commit()
+                message = f"Product '{name}' updated."
+            elif action == 'delete':
+                product_id = int(request.form.get('product_id', '0'))
+                product = db.query(Product).filter_by(productID=product_id).first()
+                if not product:
+                    raise ValueError("Product not found.")
+                db.delete(product)
+                db.commit()
+                message = f"Product '{product.name}' deleted."
+        except Exception as e:
+            db.rollback()
+            error = str(e)
+
+    products = db.query(Product).order_by(Product.productID.desc()).all()
+    return render_template('admin_products.html', products=products, message=message, error=error)
+
+
+# ---------------------------------------------
+# Admin: Flash Sale Management
+# ---------------------------------------------
+@app.route('/admin/flash-sales', methods=['GET', 'POST'])
+def admin_flash_sales():
+    """Allow admins to create flash sales with title and time window."""
+    if not is_admin_user():
+        abort(403)
+
+    db = get_db()
+    flash_service = FlashSaleService(db)
+    message = None
+    error = None
+
+    if request.method == 'POST':
+        try:
+            title = (request.form.get('title') or '').strip()
+            product_id = int(request.form.get('product_id', '0'))
+            discount_percent = float(request.form.get('discount_percent', '0'))
+            max_quantity = int(request.form.get('max_quantity', '0'))
+            start_date = request.form.get('start_date') or ''
+            start_time = request.form.get('start_time') or '00:00'
+            end_date = request.form.get('end_date') or ''
+            end_time = request.form.get('end_time') or '00:00'
+
+            # Combine date and time into UTC datetimes
+            start_dt = datetime.strptime(f"{start_date} {start_time}", "%Y-%m-%d %H:%M").replace(tzinfo=timezone.utc)
+            end_dt = datetime.strptime(f"{end_date} {end_time}", "%Y-%m-%d %H:%M").replace(tzinfo=timezone.utc)
+
+            success, msg, _ = flash_service.create_flash_sale(
+                product_id=product_id,
+                start_time=start_dt,
+                end_time=end_dt,
+                discount_percent=discount_percent,
+                max_quantity=max_quantity,
+                title=title or "Flash Sale",
+            )
+            if success:
+                message = msg
+            else:
+                error = msg
+        except Exception as e:
+            db.rollback()
+            error = f"Error creating flash sale: {e}"
+
+    products = db.query(Product).order_by(Product.name).all()
+    active_sales = flash_service.get_active_flash_sales()
+    upcoming_sales = db.query(FlashSale).filter(FlashSale._status == 'active').order_by(FlashSale._start_time.asc()).all()
+
+    return render_template(
+        'admin_flash_sales.html',
+        products=products,
+        active_sales=active_sales,
+        upcoming_sales=upcoming_sales,
+        message=message,
+        error=error
+    )
+
+
+# ---------------------------------------------
+# Admin: Manage Store (Unified Products, Stock, Flash Sales)
+# ---------------------------------------------
+@app.route('/admin/manage-store', methods=['GET'])
+def manage_store():
+    """Unified store management page with products, stock alerts, and flash sales."""
+    if not is_admin_user():
+        abort(403)
+    
+    db = get_db()
+    
+    # Get products
+    products = db.query(Product).order_by(Product.productID.desc()).all()
+    
+    # Get low stock alerts
+    low_stock_service = LowStockAlertService(db)
+    low_stock_summary = low_stock_service.get_alert_summary()
+    
+    # Get flash sales
+    flash_service = FlashSaleService(db)
+    active_flash_sales = flash_service.get_active_flash_sales()
+    flash_sales = db.query(FlashSale).order_by(FlashSale._start_time.desc()).all()
+    
+    # Get any messages from session
+    message = request.args.get('message')
+    flash_sale_message = request.args.get('flash_message')
+    
+    return render_template(
+        'manage_store.html',
+        products=products,
+        low_stock_summary=low_stock_summary,
+        active_flash_sales=active_flash_sales,
+        flash_sales=flash_sales,
+        message=message,
+        flash_sale_message=flash_sale_message,
+    )
+
 @app.route('/api/features/<feature_name>/toggle', methods=['POST'])
 def toggle_feature(feature_name):
     """Toggle feature on/off"""
@@ -1189,6 +1452,11 @@ def order_history():
     """
     Order History with filtering and search.
     Supports filtering by status, date range, and keyword search.
+    
+    Date Validation (CP4 Feature 2.1):
+    - 'To Date' must be on or after 'From Date'
+    - 'From Date' cannot be in the future
+    - Invalid dates are cleared with error message displayed
     """
     if 'user_id' not in session:
         return redirect(url_for('login'))
@@ -1204,12 +1472,34 @@ def order_history():
     start_date_str = request.args.get('start_date', '').strip() or None
     end_date_str = request.args.get('end_date', '').strip() or None
     keyword = request.args.get('keyword', '').strip() or None
-    page = int(request.args.get('page', 1))
+    
+    # Validate page number
+    try:
+        page = max(1, int(request.args.get('page', 1)))
+    except (ValueError, TypeError):
+        page = 1
     
     # Parse dates
     history_service = HistoryService(db)
     start_date = history_service.parse_date(start_date_str)
     end_date = history_service.parse_date(end_date_str)
+    
+    # Date validation error message
+    date_error = None
+    today = datetime.now(timezone.utc)
+    today_date_str = today.strftime('%Y-%m-%d')  # For HTML max attribute
+    
+    # Validate date range: end_date must be >= start_date
+    if start_date and end_date and end_date < start_date:
+        date_error = "Invalid date range: 'To Date' must be on or after 'From Date'. The invalid 'To Date' has been cleared."
+        end_date = None
+        end_date_str = ''
+    
+    # Validate start_date is not in the future
+    if start_date and start_date.date() > today.date():
+        date_error = "Invalid date: 'From Date' cannot be in the future. The invalid date has been cleared."
+        start_date = None
+        start_date_str = ''
     
     # Get filtered order history
     order_data = history_service.get_order_history(
@@ -1252,12 +1542,19 @@ def order_history():
             'end_date': end_date_str or '',
             'keyword': keyword or '',
         },
+        date_error=date_error,
+        today_date=today_date_str,
     )
 
 
 @app.route('/api/order-history', methods=['GET'])
 def api_order_history():
-    """API endpoint for order history with filters."""
+    """API endpoint for order history with filters.
+    
+    Date Validation:
+    - 'end_date' must be on or after 'start_date'
+    - 'start_date' cannot be in the future
+    """
     if 'user_id' not in session:
         return jsonify({'error': 'Not authenticated'}), 401
     
@@ -1269,7 +1566,27 @@ def api_order_history():
     start_date = history_service.parse_date(request.args.get('start_date'))
     end_date = history_service.parse_date(request.args.get('end_date'))
     keyword = request.args.get('keyword') or None
-    page = int(request.args.get('page', 1))
+    
+    # Validate page number
+    try:
+        page = max(1, int(request.args.get('page', 1)))
+    except (ValueError, TypeError):
+        page = 1
+    
+    # Validate date range: end_date must be >= start_date
+    if start_date and end_date and end_date < start_date:
+        return jsonify({
+            'error': "Invalid date range: 'end_date' must be on or after 'start_date'.",
+            'code': 'INVALID_DATE_RANGE'
+        }), 400
+    
+    # Validate start_date is not in the future
+    today = datetime.now(timezone.utc)
+    if start_date and start_date.date() > today.date():
+        return jsonify({
+            'error': "Invalid date: 'start_date' cannot be in the future.",
+            'code': 'FUTURE_DATE'
+        }), 400
     
     order_data = history_service.get_order_history(
         user_id=session['user_id'],

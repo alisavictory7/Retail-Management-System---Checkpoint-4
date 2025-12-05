@@ -7,4 +7,3 @@ python /app/scripts/bootstrap_super_admin.py
 
 echo "Starting application..."
 exec "$@"
-

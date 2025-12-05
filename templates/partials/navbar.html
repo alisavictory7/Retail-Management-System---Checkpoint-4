@@ -1,71 +1,221 @@
 {% set show_storefront = show_storefront_link if show_storefront_link is defined else True %}
-<nav class="bg-white shadow-md">
-    <div class="container mx-auto px-4 py-3 flex flex-wrap items-center justify-between gap-4">
-        <a href="{{ url_for('index') }}" class="text-xl font-bold text-gray-900">Retail Management System</a>
-        <div class="flex items-center flex-wrap gap-4 text-sm">
-            {% if current_user %}
-                <span class="text-gray-600">Welcome, {{ current_user.username }}!</span>
-                {% if show_storefront %}
-                <a href="{{ url_for('index') }}" class="text-blue-500 hover:underline">Storefront</a>
-                {% endif %}
-                <a href="{{ url_for('order_history') }}" class="text-blue-500 hover:underline">Order History</a>
-                <a href="{{ url_for('returns.view_returns') }}" class="text-blue-500 hover:underline">Returns</a>
-                
-                <!-- Notification Bell (CP4 Feature 2.3) -->
-                <div class="relative" id="notification-container">
-                    <button onclick="toggleNotifications()" class="relative p-1 text-gray-600 hover:text-blue-500 focus:outline-none" title="Notifications">
-                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"></path>
+<nav class="bg-white shadow-sm border-b border-gray-100 sticky top-0 z-40">
+    <div class="container mx-auto px-4">
+        <div class="flex items-center justify-between h-16">
+            <!-- Logo & Brand -->
+            <a href="{{ url_for('index') }}" class="flex items-center gap-2 text-xl font-bold text-gray-900 hover:text-emerald-600 transition">
+                <svg class="w-8 h-8 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"></path>
+                </svg>
+                <span class="hidden sm:inline">Retail System</span>
+            </a>
+
+            <!-- Navigation Links -->
+            <div class="flex items-center gap-1 sm:gap-2">
+                {% if current_user %}
+                    <!-- Customer Links -->
+                    {% if show_storefront %}
+                    <a href="{{ url_for('index') }}" class="px-3 py-2 text-sm font-medium text-gray-600 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition">
+                        <span class="hidden sm:inline">Store</span>
+                        <svg class="w-5 h-5 sm:hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"></path>
                         </svg>
-                        {% if notification_count and notification_count > 0 %}
-                        <span id="notification-badge" class="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-4 w-4 flex items-center justify-center">
-                            {{ notification_count if notification_count < 10 else '9+' }}
-                        </span>
-                        {% endif %}
-                    </button>
+                    </a>
+                    {% endif %}
                     
-                    <!-- Notification Dropdown -->
-                    <div id="notification-dropdown" class="hidden absolute right-0 mt-2 w-80 bg-white rounded-lg shadow-xl border border-gray-200 z-50">
-                        <div class="p-3 border-b border-gray-200 flex items-center justify-between">
-                            <span class="font-semibold text-gray-900">Notifications</span>
-                            <button onclick="markAllNotificationsRead()" class="text-xs text-blue-500 hover:underline">Mark all read</button>
-                        </div>
-                        <div id="notification-list" class="max-h-80 overflow-y-auto">
-                            <div class="p-4 text-center text-gray-500 text-sm">Loading...</div>
+                    <a href="{{ url_for('order_history') }}" class="px-3 py-2 text-sm font-medium text-gray-600 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition">
+                        <span class="hidden sm:inline">Orders</span>
+                        <svg class="w-5 h-5 sm:hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path>
+                        </svg>
+                    </a>
+                    
+                    <a href="{{ url_for('returns.view_returns') }}" class="px-3 py-2 text-sm font-medium text-gray-600 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition">
+                        <span class="hidden sm:inline">Returns</span>
+                        <svg class="w-5 h-5 sm:hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6"></path>
+                        </svg>
+                    </a>
+                    
+                    <!-- Notifications Bell -->
+                    <div class="relative" id="notification-container">
+                        <button onclick="toggleNotifications()" class="px-3 py-2 text-gray-600 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition relative" title="Notifications">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"></path>
+                            </svg>
+                            {% if notification_count and notification_count > 0 %}
+                            <span id="notification-badge" class="absolute -top-0.5 -right-0.5 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center font-medium">
+                                {{ notification_count if notification_count < 10 else '9+' }}
+                            </span>
+                            {% endif %}
+                        </button>
+                        
+                        <!-- Notification Dropdown -->
+                        <div id="notification-dropdown" class="hidden absolute right-0 mt-2 w-80 bg-white rounded-xl shadow-xl border border-gray-100 z-50 overflow-hidden">
+                            <div class="p-4 border-b border-gray-100 flex items-center justify-between bg-gray-50">
+                                <span class="font-semibold text-gray-900">Notifications</span>
+                                <button onclick="markAllNotificationsRead()" class="text-xs text-emerald-600 hover:underline font-medium">Mark all read</button>
+                            </div>
+                            <div id="notification-list" class="max-h-80 overflow-y-auto">
+                                <div class="p-4 text-center text-gray-500 text-sm">Loading...</div>
+                            </div>
                         </div>
                     </div>
-                </div>
-                
-                {% if is_admin %}
-                <a href="{{ url_for('admin_dashboard') }}" class="text-blue-500 hover:underline">Dashboard</a>
-                <a href="{{ url_for('returns.admin_returns_dashboard') }}" class="text-blue-500 hover:underline">Returns Admin</a>
-                <a href="{{ url_for('admin_users') }}" class="text-blue-500 hover:underline">User Admin</a>
+                    
+                    <!-- Admin Dropdown -->
+                    {% if is_admin %}
+                    <div class="relative" id="admin-dropdown-container">
+                        <button onclick="toggleAdminMenu()" class="px-3 py-2 text-sm font-medium text-white bg-gradient-to-r from-violet-500 to-purple-600 hover:opacity-90 rounded-lg transition flex items-center gap-1">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path>
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                            </svg>
+                            <span class="hidden sm:inline">Admin</span>
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                            </svg>
+                        </button>
+                        
+                        <!-- Admin Dropdown Menu -->
+                        <div id="admin-dropdown" class="hidden absolute right-0 mt-2 w-56 bg-white rounded-xl shadow-xl border border-gray-100 z-50 overflow-hidden">
+                            <div class="p-2">
+                                <a href="{{ url_for('admin_dashboard') }}" class="flex items-center gap-3 px-3 py-2.5 text-sm text-gray-700 hover:bg-violet-50 hover:text-violet-700 rounded-lg transition">
+                                    <svg class="w-5 h-5 text-violet-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"></path>
+                                    </svg>
+                                    Dashboard
+                                </a>
+                                <a href="{{ url_for('admin_users') }}" class="flex items-center gap-3 px-3 py-2.5 text-sm text-gray-700 hover:bg-violet-50 hover:text-violet-700 rounded-lg transition">
+                                    <svg class="w-5 h-5 text-violet-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"></path>
+                                    </svg>
+                                    User Admin
+                                </a>
+                                <a href="{{ url_for('manage_store') }}" class="flex items-center gap-3 px-3 py-2.5 text-sm text-gray-700 hover:bg-emerald-50 hover:text-emerald-700 rounded-lg transition">
+                                    <svg class="w-5 h-5 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"></path>
+                                    </svg>
+                                    Manage Store
+                                </a>
+                                <a href="{{ url_for('returns.admin_returns_dashboard') }}" class="flex items-center gap-3 px-3 py-2.5 text-sm text-gray-700 hover:bg-amber-50 hover:text-amber-700 rounded-lg transition">
+                                    <svg class="w-5 h-5 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6"></path>
+                                    </svg>
+                                    Returns Admin
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                    {% endif %}
+                    
+                    <!-- User Menu -->
+                    <div class="relative ml-2" id="user-menu-container">
+                        <button onclick="toggleUserMenu()" class="flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-lg transition">
+                            <div class="w-8 h-8 rounded-full bg-gradient-to-br from-emerald-400 to-teal-500 flex items-center justify-center text-white font-medium text-sm">
+                                {{ current_user.username[0]|upper if current_user else 'U' }}
+                            </div>
+                            <span class="hidden md:inline text-sm font-medium text-gray-700">{{ current_user.username if current_user else 'User' }}</span>
+                        </button>
+                        
+                        <div id="user-dropdown" class="hidden absolute right-0 mt-2 w-48 bg-white rounded-xl shadow-xl border border-gray-100 z-50 overflow-hidden">
+                            <div class="p-3 border-b border-gray-100 bg-gray-50">
+                                <p class="text-sm font-medium text-gray-900">{{ current_user.username if current_user else 'User' }}</p>
+                                <p class="text-xs text-gray-500">{{ current_user.email if current_user else '' }}</p>
+                            </div>
+                            <div class="p-2">
+                                <a href="{{ url_for('logout') }}" class="flex items-center gap-2 px-3 py-2 text-sm text-red-600 hover:bg-red-50 rounded-lg transition">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"></path>
+                                    </svg>
+                                    Sign Out
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                {% else %}
+                    <!-- Guest Links -->
+                    {% if show_storefront %}
+                    <a href="{{ url_for('index') }}" class="px-3 py-2 text-sm font-medium text-gray-600 hover:text-emerald-600 rounded-lg transition">Store</a>
+                    {% endif %}
+                    <a href="{{ url_for('login') }}" class="px-4 py-2 text-sm font-medium text-gray-600 hover:text-emerald-600 rounded-lg transition">Sign In</a>
+                    <a href="{{ url_for('register') }}" class="px-4 py-2 text-sm font-medium text-white bg-emerald-500 hover:bg-emerald-600 rounded-lg transition">Sign Up</a>
                 {% endif %}
-                <a href="{{ url_for('logout') }}" class="text-blue-500 hover:underline">Logout</a>
-            {% else %}
-                {% if show_storefront %}
-                <a href="{{ url_for('index') }}" class="text-blue-500 hover:underline">Storefront</a>
-                {% endif %}
-                <a href="{{ url_for('login') }}" class="text-blue-500 hover:underline">Login</a>
-                <a href="{{ url_for('register') }}" class="text-blue-500 hover:underline">Register</a>
-            {% endif %}
+            </div>
         </div>
     </div>
 </nav>
 
-<!-- Notification JavaScript (CP4 Feature 2.3) -->
+<!-- Flash Sale Banner -->
+{% if active_flash_sales and active_flash_sales|length > 0 %}
+<div class="bg-gradient-to-r from-rose-500 via-orange-500 to-amber-500 text-white relative overflow-hidden">
+    <div class="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHZpZXdCb3g9IjAgMCA2MCA2MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48ZyBmaWxsPSJub25lIiBmaWxsLXJ1bGU9ImV2ZW5vZGQiPjxnIGZpbGw9IiNmZmYiIGZpbGwtb3BhY2l0eT0iMC4xIj48cGF0aCBkPSJNMzYgMzBoLTJ2LTJoMnYyem0wLTRoLTJ2LTJoMnYyem0tNC00aC0ydi0yaDJ2MnptMCA4aC0ydi0yaDJ2MnptLTQtNGgtMnYtMmgydjJ6Ii8+PC9nPjwvZz48L3N2Zz4=')] opacity-30"></div>
+    <div class="container mx-auto px-4 py-2.5 flex flex-wrap items-center justify-center gap-3 relative">
+        <div class="flex items-center gap-2">
+            <svg class="w-5 h-5 animate-pulse" fill="currentColor" viewBox="0 0 20 20">
+                <path d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.38z"/>
+            </svg>
+            <span class="font-bold text-sm uppercase tracking-wider">Flash Sale</span>
+        </div>
+        <span class="text-sm">
+            {% if active_flash_sales|length == 1 %}
+                <strong>{{ active_flash_sales[0].product.name if active_flash_sales[0].product else 'Product' }}</strong> - {{ '%.0f'|format(active_flash_sales[0].discount_percent) }}% OFF!
+            {% elif active_flash_sales|length == 2 %}
+                <strong>{{ active_flash_sales[0].product.name if active_flash_sales[0].product else 'Item 1' }}</strong> & <strong>{{ active_flash_sales[1].product.name if active_flash_sales[1].product else 'Item 2' }}</strong> on sale!
+            {% else %}
+                <strong>{{ active_flash_sales|length }} products</strong> on flash sale - Shop now!
+            {% endif %}
+        </span>
+        <a href="{{ url_for('index') }}" class="px-3 py-1 bg-white/20 hover:bg-white/30 rounded-full text-xs font-medium transition">
+            Shop Now →
+        </a>
+    </div>
+</div>
+{% endif %}
+
+<!-- JavaScript for Dropdowns and Notifications -->
 <script>
 let notificationDropdownOpen = false;
+let adminDropdownOpen = false;
+let userDropdownOpen = false;
 
 function toggleNotifications() {
     const dropdown = document.getElementById('notification-dropdown');
     notificationDropdownOpen = !notificationDropdownOpen;
-    
+    closeOtherDropdowns('notification');
     if (notificationDropdownOpen) {
         dropdown.classList.remove('hidden');
         loadNotifications();
     } else {
         dropdown.classList.add('hidden');
+    }
+}
+
+function toggleAdminMenu() {
+    const dropdown = document.getElementById('admin-dropdown');
+    adminDropdownOpen = !adminDropdownOpen;
+    closeOtherDropdowns('admin');
+    dropdown.classList.toggle('hidden', !adminDropdownOpen);
+}
+
+function toggleUserMenu() {
+    const dropdown = document.getElementById('user-dropdown');
+    userDropdownOpen = !userDropdownOpen;
+    closeOtherDropdowns('user');
+    dropdown.classList.toggle('hidden', !userDropdownOpen);
+}
+
+function closeOtherDropdowns(except) {
+    if (except !== 'notification') {
+        document.getElementById('notification-dropdown')?.classList.add('hidden');
+        notificationDropdownOpen = false;
+    }
+    if (except !== 'admin') {
+        document.getElementById('admin-dropdown')?.classList.add('hidden');
+        adminDropdownOpen = false;
+    }
+    if (except !== 'user') {
+        document.getElementById('user-dropdown')?.classList.add('hidden');
+        userDropdownOpen = false;
     }
 }
 
@@ -76,7 +226,7 @@ function loadNotifications() {
             const listEl = document.getElementById('notification-list');
             if (data.notifications && data.notifications.length > 0) {
                 listEl.innerHTML = data.notifications.map(n => `
-                    <div class="p-3 border-b border-gray-100 hover:bg-gray-50 cursor-pointer ${n.read ? 'opacity-60' : ''}" 
+                    <div class="p-3 border-b border-gray-50 hover:bg-gray-50 cursor-pointer ${n.read ? 'opacity-60' : ''}" 
                          onclick="markNotificationRead('${n.id}')">
                         <div class="flex items-start gap-2">
                             <div class="flex-shrink-0 mt-1">
@@ -90,18 +240,16 @@ function loadNotifications() {
                                 <p class="text-xs text-gray-500 truncate">${n.message}</p>
                                 <p class="text-xs text-gray-400 mt-1">${new Date(n.created_at).toLocaleString()}</p>
                             </div>
-                            ${!n.read ? '<span class="w-2 h-2 bg-blue-500 rounded-full flex-shrink-0"></span>' : ''}
+                            ${!n.read ? '<span class="w-2 h-2 bg-emerald-500 rounded-full flex-shrink-0"></span>' : ''}
                         </div>
                     </div>
                 `).join('');
             } else {
-                listEl.innerHTML = '<div class="p-4 text-center text-gray-500 text-sm">No notifications yet</div>';
+                listEl.innerHTML = '<div class="p-6 text-center text-gray-400 text-sm">No notifications yet</div>';
             }
             updateBadge(data.unread_count);
         })
-        .catch(err => {
-            console.error('Failed to load notifications:', err);
-        });
+        .catch(err => console.error('Failed to load notifications:', err));
 }
 
 function markNotificationRead(notificationId) {
@@ -134,13 +282,23 @@ function updateBadge(count) {
     }
 }
 
-// Close dropdown when clicking outside
+// Close dropdowns when clicking outside
 document.addEventListener('click', function(event) {
-    const container = document.getElementById('notification-container');
-    if (container && !container.contains(event.target)) {
-        document.getElementById('notification-dropdown').classList.add('hidden');
+    const notifContainer = document.getElementById('notification-container');
+    const adminContainer = document.getElementById('admin-dropdown-container');
+    const userContainer = document.getElementById('user-menu-container');
+    
+    if (notifContainer && !notifContainer.contains(event.target)) {
+        document.getElementById('notification-dropdown')?.classList.add('hidden');
         notificationDropdownOpen = false;
+    }
+    if (adminContainer && !adminContainer.contains(event.target)) {
+        document.getElementById('admin-dropdown')?.classList.add('hidden');
+        adminDropdownOpen = false;
+    }
+    if (userContainer && !userContainer.contains(event.target)) {
+        document.getElementById('user-dropdown')?.classList.add('hidden');
+        userDropdownOpen = false;
     }
 });
 </script>
-

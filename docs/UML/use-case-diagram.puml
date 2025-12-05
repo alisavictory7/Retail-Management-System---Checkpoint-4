@@ -1,4 +1,4 @@
-@startuml Use Case Diagram - Retail CP3
+@startuml Use Case Diagram - Retail CP4
 
 !theme plain
 skinparam usecaseStyle rectangle
@@ -27,6 +27,12 @@ rectangle "Storefront" {
     usecase "Track Order Status" as UC_OrderStatus
 }
 
+rectangle "Order History (CP4)" #E8F5E9 {
+    usecase "View Order History" as UC_OrderHistory
+    usecase "Filter by Status/Date" as UC_FilterHistory
+    usecase "Search Orders by Keyword" as UC_SearchOrders
+}
+
 rectangle "Returns & Refunds" {
     usecase "Submit Return Request" as UC_ReturnRequest
     usecase "Upload Return Photos" as UC_ReturnPhotos
@@ -37,10 +43,21 @@ rectangle "Returns & Refunds" {
     usecase "Trigger Refund / Replacement" as UC_Refund
 }
 
+rectangle "Notifications (CP4)" #FFF8E1 {
+    usecase "Receive RMA Status Notification" as UC_RMANotification
+    usecase "View Notification Panel" as UC_ViewNotifications
+    usecase "Mark Notifications Read" as UC_MarkRead
+}
+
 rectangle "Admin & Observability" {
-    usecase "Manage Catalog & Users" as UC_AdminManage
-    usecase "View Admin Dashboard" as UC_Dashboard
+    usecase "View Unified Dashboard" as UC_Dashboard
+    usecase "Manage Users" as UC_UserAdmin
+    usecase "Manage Store" as UC_ManageStore
+    usecase "Manage Products" as UC_ProductAdmin
+    usecase "Create Flash Sales" as UC_FlashSales
+    usecase "View Low Stock Alerts" as UC_LowStockAlerts
     usecase "Monitor Quality Scenarios (A.1 / P.1)" as UC_QualityMonitoring
+    usecase "Manage Returns" as UC_ReturnsAdmin
 }
 
 rectangle "Partner Integration" {
@@ -52,16 +69,22 @@ Customer --> UC_Browse
 Customer --> UC_Cart
 Customer --> UC_Checkout
 Customer --> UC_OrderStatus
+Customer --> UC_OrderHistory
 Customer --> UC_ReturnRequest
 Customer --> UC_ReturnPhotos
 Customer --> UC_ReturnTrack
+Customer --> UC_RMANotification
+Customer --> UC_ViewNotifications
+Customer --> UC_MarkRead
 
 Admin --> UC_ReviewReturn
 Admin --> UC_Authorize
 Admin --> UC_Inspection
 Admin --> UC_Refund
-Admin --> UC_AdminManage
 Admin --> UC_Dashboard
+Admin --> UC_UserAdmin
+Admin --> UC_ManageStore
+Admin --> UC_ReturnsAdmin
 Admin --> UC_QualityMonitoring
 
 Partner --> UC_PartnerSync
@@ -74,6 +97,17 @@ UC_Checkout ..> UC_Cart : <<includes>>
 UC_ReturnRequest ..> UC_ReturnPhotos : <<optional>>
 UC_Refund ..> UC_Inspection : <<requires>>
 UC_Dashboard ..> UC_QualityMonitoring : <<includes>>
+UC_Dashboard ..> UC_UserAdmin : <<portal>>
+UC_Dashboard ..> UC_ManageStore : <<portal>>
+UC_Dashboard ..> UC_ReturnsAdmin : <<portal>>
+UC_ManageStore ..> UC_ProductAdmin : <<includes>>
+UC_ManageStore ..> UC_FlashSales : <<includes>>
+UC_ManageStore ..> UC_LowStockAlerts : <<includes>>
+UC_OrderHistory ..> UC_FilterHistory : <<optional>>
+UC_OrderHistory ..> UC_SearchOrders : <<optional>>
+UC_Authorize ..> UC_RMANotification : <<triggers>>
+UC_Inspection ..> UC_RMANotification : <<triggers>>
+UC_Refund ..> UC_RMANotification : <<triggers>>
 
 note right of UC_Refund
   Refund Execution
@@ -82,19 +116,34 @@ note right of UC_Refund
   - Partial approvals keep audit notes
 end note
 
-note right of UC_QualityMonitoring
-  Scenario Evidence
-  - A.1 availability (acceptance rate + MTTR)
-  - P.1 performance (95th percentile latency)
-  - Dashboard consumes live metrics
+note right of UC_ManageStore
+  Unified Store Management
+  - Product inventory CRUD
+  - Flash sale creation
+  - Low stock alerts (Pub-Sub)
+  - Tabbed interface design
 end note
 
-note right of UC_ReturnRequest
-  Returns Workflow
-  1. Customer submits RMA with photos
-  2. Admin validates eligibility & authorizes
-  3. Shipment + inspection captured
-  4. Refund or rejection recorded
+note right of UC_Dashboard
+  Unified Admin Dashboard
+  - Portal cards for quick access
+  - User/Store/Returns management
+  - Business metrics & KPIs
+  - Quality scenario monitoring
+end note
+
+note right of UC_OrderHistory
+  CP4 Feature 2.1
+  - Filter by status, date range
+  - Keyword search across orders
+  - Layered HistoryService abstraction
+end note
+
+note right of UC_RMANotification
+  CP4 Feature 2.3
+  - Pub-Sub pattern for status changes
+  - In-app notification panel
+  - Badge count in navbar
 end note
 
 @enduml
