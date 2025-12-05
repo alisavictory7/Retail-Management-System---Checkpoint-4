@@ -8,7 +8,34 @@
                 {% if show_storefront %}
                 <a href="{{ url_for('index') }}" class="text-blue-500 hover:underline">Storefront</a>
                 {% endif %}
+                <a href="{{ url_for('order_history') }}" class="text-blue-500 hover:underline">Order History</a>
                 <a href="{{ url_for('returns.view_returns') }}" class="text-blue-500 hover:underline">Returns</a>
+                
+                <!-- Notification Bell (CP4 Feature 2.3) -->
+                <div class="relative" id="notification-container">
+                    <button onclick="toggleNotifications()" class="relative p-1 text-gray-600 hover:text-blue-500 focus:outline-none" title="Notifications">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"></path>
+                        </svg>
+                        {% if notification_count and notification_count > 0 %}
+                        <span id="notification-badge" class="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-4 w-4 flex items-center justify-center">
+                            {{ notification_count if notification_count < 10 else '9+' }}
+                        </span>
+                        {% endif %}
+                    </button>
+                    
+                    <!-- Notification Dropdown -->
+                    <div id="notification-dropdown" class="hidden absolute right-0 mt-2 w-80 bg-white rounded-lg shadow-xl border border-gray-200 z-50">
+                        <div class="p-3 border-b border-gray-200 flex items-center justify-between">
+                            <span class="font-semibold text-gray-900">Notifications</span>
+                            <button onclick="markAllNotificationsRead()" class="text-xs text-blue-500 hover:underline">Mark all read</button>
+                        </div>
+                        <div id="notification-list" class="max-h-80 overflow-y-auto">
+                            <div class="p-4 text-center text-gray-500 text-sm">Loading...</div>
+                        </div>
+                    </div>
+                </div>
+                
                 {% if is_admin %}
                 <a href="{{ url_for('admin_dashboard') }}" class="text-blue-500 hover:underline">Dashboard</a>
                 <a href="{{ url_for('returns.admin_returns_dashboard') }}" class="text-blue-500 hover:underline">Returns Admin</a>
@@ -25,4 +52,95 @@
         </div>
     </div>
 </nav>
+
+<!-- Notification JavaScript (CP4 Feature 2.3) -->
+<script>
+let notificationDropdownOpen = false;
+
+function toggleNotifications() {
+    const dropdown = document.getElementById('notification-dropdown');
+    notificationDropdownOpen = !notificationDropdownOpen;
+    
+    if (notificationDropdownOpen) {
+        dropdown.classList.remove('hidden');
+        loadNotifications();
+    } else {
+        dropdown.classList.add('hidden');
+    }
+}
+
+function loadNotifications() {
+    fetch('/api/notifications?limit=10')
+        .then(response => response.json())
+        .then(data => {
+            const listEl = document.getElementById('notification-list');
+            if (data.notifications && data.notifications.length > 0) {
+                listEl.innerHTML = data.notifications.map(n => `
+                    <div class="p-3 border-b border-gray-100 hover:bg-gray-50 cursor-pointer ${n.read ? 'opacity-60' : ''}" 
+                         onclick="markNotificationRead('${n.id}')">
+                        <div class="flex items-start gap-2">
+                            <div class="flex-shrink-0 mt-1">
+                                ${n.type === 'rma_status' ? 
+                                    '<svg class="w-4 h-4 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path></svg>' :
+                                    '<svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>'
+                                }
+                            </div>
+                            <div class="flex-1 min-w-0">
+                                <p class="text-sm font-medium text-gray-900">${n.title}</p>
+                                <p class="text-xs text-gray-500 truncate">${n.message}</p>
+                                <p class="text-xs text-gray-400 mt-1">${new Date(n.created_at).toLocaleString()}</p>
+                            </div>
+                            ${!n.read ? '<span class="w-2 h-2 bg-blue-500 rounded-full flex-shrink-0"></span>' : ''}
+                        </div>
+                    </div>
+                `).join('');
+            } else {
+                listEl.innerHTML = '<div class="p-4 text-center text-gray-500 text-sm">No notifications yet</div>';
+            }
+            updateBadge(data.unread_count);
+        })
+        .catch(err => {
+            console.error('Failed to load notifications:', err);
+        });
+}
+
+function markNotificationRead(notificationId) {
+    fetch(`/api/notifications/${notificationId}/read`, { method: 'POST' })
+        .then(response => response.json())
+        .then(data => {
+            updateBadge(data.unread_count);
+            loadNotifications();
+        });
+}
+
+function markAllNotificationsRead() {
+    fetch('/api/notifications/mark-all-read', { method: 'POST' })
+        .then(response => response.json())
+        .then(data => {
+            updateBadge(0);
+            loadNotifications();
+        });
+}
+
+function updateBadge(count) {
+    const badge = document.getElementById('notification-badge');
+    if (badge) {
+        if (count > 0) {
+            badge.textContent = count < 10 ? count : '9+';
+            badge.classList.remove('hidden');
+        } else {
+            badge.classList.add('hidden');
+        }
+    }
+}
+
+// Close dropdown when clicking outside
+document.addEventListener('click', function(event) {
+    const container = document.getElementById('notification-container');
+    if (container && !container.contains(event.target)) {
+        document.getElementById('notification-dropdown').classList.add('hidden');
+        notificationDropdownOpen = false;
+    }
+});
+</script>
 

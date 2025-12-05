@@ -23,6 +23,7 @@ from src.models import (
 )
 from src.services.inventory_service import InventoryService
 from src.services.refund_service import RefundService
+from src.services.notification_service import publish_rma_status_change
 from src.observability import increment_counter, record_event
 
 
@@ -113,6 +114,16 @@ class ReturnsService:
             "return_request_created",
             {"return_request_id": request.returnRequestID, "sale_id": sale.saleID, "customer_id": customer_id},
         )
+        
+        # Publish RMA status change notification (CP4 Feature 2.3)
+        publish_rma_status_change(
+            return_request_id=request.returnRequestID,
+            customer_id=customer_id,
+            old_status="",
+            new_status=ReturnRequestStatus.PENDING_AUTHORIZATION.value,
+            rma_number=request.rma_number,
+        )
+        
         self.logger.info(
             "Return request %s created",
             request.returnRequestID,
@@ -155,6 +166,7 @@ class ReturnsService:
         }:
             return False, f"Cannot authorize return in status {request.status}", None
 
+        old_status = request.status
         if approve:
             request.transition_to(ReturnRequestStatus.AUTHORIZED)
             if not request.rma_number:
@@ -167,6 +179,16 @@ class ReturnsService:
         request.decision_notes = decision_notes
         self.db.commit()
         increment_counter("return_status_transition_total", labels={"status": request.status})
+        
+        # Publish RMA status change notification (CP4 Feature 2.3)
+        publish_rma_status_change(
+            return_request_id=request.returnRequestID,
+            customer_id=request.customerID,
+            old_status=old_status.value if hasattr(old_status, 'value') else str(old_status),
+            new_status=request.status.value if hasattr(request.status, 'value') else str(request.status),
+            rma_number=request.rma_number,
+        )
+        
         return True, message, request
 
     def record_shipment(
@@ -185,12 +207,23 @@ class ReturnsService:
             shipment = ReturnShipment(returnRequestID=request.returnRequestID)
             self.db.add(shipment)
 
+        old_status = request.status
         shipment.carrier = carrier
         shipment.tracking_number = tracking_number
         shipment.shipped_at = shipped_at or datetime.now(timezone.utc)
         request.transition_to(ReturnRequestStatus.IN_TRANSIT)
 
         self.db.commit()
+        
+        # Publish RMA status change notification (CP4 Feature 2.3)
+        publish_rma_status_change(
+            return_request_id=request.returnRequestID,
+            customer_id=request.customerID,
+            old_status=old_status.value if hasattr(old_status, 'value') else str(old_status),
+            new_status=request.status.value if hasattr(request.status, 'value') else str(request.status),
+            rma_number=request.rma_number,
+        )
+        
         return True, "Return shipment recorded", shipment
 
     def mark_received(
@@ -206,10 +239,21 @@ class ReturnsService:
         if not shipment:
             return False, "No shipment record found for this return", None
 
+        old_status = request.status
         shipment.received_at = received_at or datetime.now(timezone.utc)
         request.transition_to(ReturnRequestStatus.RECEIVED)
         self.db.commit()
         increment_counter("return_status_transition_total", labels={"status": request.status})
+        
+        # Publish RMA status change notification (CP4 Feature 2.3)
+        publish_rma_status_change(
+            return_request_id=request.returnRequestID,
+            customer_id=request.customerID,
+            old_status=old_status.value if hasattr(old_status, 'value') else str(old_status),
+            new_status=request.status.value if hasattr(request.status, 'value') else str(request.status),
+            rma_number=request.rma_number,
+        )
+        
         return True, "Return marked as received", shipment
 
     def record_inspection(
@@ -242,6 +286,7 @@ class ReturnsService:
         inspection.result = result_enum
         inspection.notes = notes
 
+        old_status = request.status
         if result_enum in {InspectionResult.APPROVED, InspectionResult.PARTIALLY_APPROVED}:
             request.transition_to(ReturnRequestStatus.APPROVED)
         elif result_enum == InspectionResult.REJECTED:
@@ -249,6 +294,17 @@ class ReturnsService:
 
         self.db.commit()
         increment_counter("return_status_transition_total", labels={"status": request.status})
+        
+        # Publish RMA status change notification (CP4 Feature 2.3)
+        if request.status != old_status:
+            publish_rma_status_change(
+                return_request_id=request.returnRequestID,
+                customer_id=request.customerID,
+                old_status=old_status.value if hasattr(old_status, 'value') else str(old_status),
+                new_status=request.status.value if hasattr(request.status, 'value') else str(request.status),
+                rma_number=request.rma_number,
+            )
+        
         return True, "Inspection recorded", inspection
 
     def initiate_refund(

@@ -42,6 +42,11 @@ from src.observability.business_metrics import (
 )
 from src.observability.logging_config import ensure_request_id
 
+# Checkpoint 4: Import new services
+from src.services.history_service import HistoryService
+from src.services.low_stock_alert_service import LowStockAlertService
+from src.services.notification_service import NotificationService
+
 app = Flask(__name__, template_folder='../templates', static_folder='../static')
 Config.configure_app(app)
 configure_logging(app)
@@ -87,10 +92,21 @@ def is_admin_user() -> bool:
 @app.context_processor
 def inject_nav_context():
     user = getattr(g, "current_user", None)
+    
+    # Checkpoint 4: Get notification count for the navbar badge
+    notification_count = 0
+    if user:
+        try:
+            notification_service = NotificationService()
+            notification_count = notification_service.get_unread_count(user.userID)
+        except Exception:
+            pass  # Fail silently if notification service unavailable
+    
     return {
         "current_user": user,
         "is_admin": is_admin_user(),
         "show_storefront_link": True,
+        "notification_count": notification_count,
     }
 
 @app.before_request
@@ -997,6 +1013,11 @@ def admin_dashboard():
     db_status = check_database_health()
     error_rate = _calculate_error_rate(metrics)
     scenario_metrics = _calculate_quality_scenario_metrics(metrics)
+    
+    # Checkpoint 4: Get low stock alerts
+    low_stock_service = LowStockAlertService(db)
+    low_stock_summary = low_stock_service.get_alert_summary()
+    
     return render_template(
         'admin_dashboard.html',
         metrics=metrics,
@@ -1008,6 +1029,7 @@ def admin_dashboard():
         rma_metrics=rma_metrics,
         scenario_metrics=scenario_metrics,
         error_rate=error_rate,
+        low_stock_summary=low_stock_summary,
     )
 
 
@@ -1153,4 +1175,185 @@ def get_operation_progress(operation_id):
             
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
+# ==============================================
+# CHECKPOINT 4: NEW FEATURES
+# ==============================================
+
+# ---------------------------------------------
+# Feature 2.1: Order History Filtering & Search
+# ---------------------------------------------
+
+@app.route('/order-history', methods=['GET'])
+def order_history():
+    """
+    Order History with filtering and search.
+    Supports filtering by status, date range, and keyword search.
+    """
+    if 'user_id' not in session:
+        return redirect(url_for('login'))
+    
+    db = get_db()
+    user = db.query(User).filter_by(userID=session['user_id']).first()
+    if not user:
+        session.clear()
+        return redirect(url_for('login'))
+    
+    # Get filter parameters
+    status_filter = request.args.get('status', '').strip() or None
+    start_date_str = request.args.get('start_date', '').strip() or None
+    end_date_str = request.args.get('end_date', '').strip() or None
+    keyword = request.args.get('keyword', '').strip() or None
+    page = int(request.args.get('page', 1))
+    
+    # Parse dates
+    history_service = HistoryService(db)
+    start_date = history_service.parse_date(start_date_str)
+    end_date = history_service.parse_date(end_date_str)
+    
+    # Get filtered order history
+    order_data = history_service.get_order_history(
+        user_id=session['user_id'],
+        status_filter=status_filter,
+        start_date=start_date,
+        end_date=end_date,
+        keyword=keyword,
+        page=page,
+    )
+    
+    # Get returns history with same filters
+    returns_data = history_service.get_returns_history(
+        user_id=session['user_id'],
+        status_filter=status_filter if status_filter and status_filter.upper() in ['PENDING_AUTHORIZATION', 'AUTHORIZED', 'IN_TRANSIT', 'RECEIVED', 'UNDER_INSPECTION', 'APPROVED', 'REJECTED', 'REFUNDED', 'CANCELLED'] else None,
+        start_date=start_date,
+        end_date=end_date,
+        keyword=keyword,
+        page=page,
+    )
+    
+    # Available status options for dropdown
+    status_options = [
+        {'value': '', 'label': 'All Statuses'},
+        {'value': 'completed', 'label': 'Completed'},
+        {'value': 'pending', 'label': 'Pending'},
+        {'value': 'returned', 'label': 'Returned'},
+        {'value': 'refunded', 'label': 'Refunded'},
+    ]
+    
+    return render_template(
+        'order_history.html',
+        username=user.username,
+        order_data=order_data,
+        returns_data=returns_data,
+        status_options=status_options,
+        current_filters={
+            'status': status_filter or '',
+            'start_date': start_date_str or '',
+            'end_date': end_date_str or '',
+            'keyword': keyword or '',
+        },
+    )
+
+
+@app.route('/api/order-history', methods=['GET'])
+def api_order_history():
+    """API endpoint for order history with filters."""
+    if 'user_id' not in session:
+        return jsonify({'error': 'Not authenticated'}), 401
+    
+    db = get_db()
+    history_service = HistoryService(db)
+    
+    # Get filter parameters
+    status_filter = request.args.get('status') or None
+    start_date = history_service.parse_date(request.args.get('start_date'))
+    end_date = history_service.parse_date(request.args.get('end_date'))
+    keyword = request.args.get('keyword') or None
+    page = int(request.args.get('page', 1))
+    
+    order_data = history_service.get_order_history(
+        user_id=session['user_id'],
+        status_filter=status_filter,
+        start_date=start_date,
+        end_date=end_date,
+        keyword=keyword,
+        page=page,
+    )
+    
+    return jsonify(order_data)
+
+
+# ---------------------------------------------
+# Feature 2.2: Low Stock Alerts API
+# ---------------------------------------------
+
+@app.route('/api/admin/low-stock', methods=['GET'])
+def api_low_stock_alerts():
+    """API endpoint for low stock alerts (admin only)."""
+    if not is_admin_user():
+        return jsonify({'error': 'Forbidden'}), 403
+    
+    db = get_db()
+    low_stock_service = LowStockAlertService(db)
+    summary = low_stock_service.get_alert_summary()
+    
+    return jsonify(summary)
+
+
+# ---------------------------------------------
+# Feature 2.3: Notifications API
+# ---------------------------------------------
+
+@app.route('/api/notifications', methods=['GET'])
+def api_get_notifications():
+    """Get notifications for the current user."""
+    if 'user_id' not in session:
+        return jsonify({'error': 'Not authenticated'}), 401
+    
+    notification_service = NotificationService()
+    unread_only = request.args.get('unread_only', 'false').lower() == 'true'
+    limit = int(request.args.get('limit', 20))
+    
+    notifications = notification_service.get_notifications(
+        user_id=session['user_id'],
+        unread_only=unread_only,
+        limit=limit,
+    )
+    unread_count = notification_service.get_unread_count(session['user_id'])
+    
+    return jsonify({
+        'notifications': notifications,
+        'unread_count': unread_count,
+    })
+
+
+@app.route('/api/notifications/<notification_id>/read', methods=['POST'])
+def api_mark_notification_read(notification_id):
+    """Mark a notification as read."""
+    if 'user_id' not in session:
+        return jsonify({'error': 'Not authenticated'}), 401
+    
+    notification_service = NotificationService()
+    success = notification_service.mark_as_read(session['user_id'], notification_id)
+    
+    return jsonify({
+        'success': success,
+        'unread_count': notification_service.get_unread_count(session['user_id']),
+    })
+
+
+@app.route('/api/notifications/mark-all-read', methods=['POST'])
+def api_mark_all_notifications_read():
+    """Mark all notifications as read."""
+    if 'user_id' not in session:
+        return jsonify({'error': 'Not authenticated'}), 401
+    
+    notification_service = NotificationService()
+    count = notification_service.mark_all_as_read(session['user_id'])
+    
+    return jsonify({
+        'success': True,
+        'marked_count': count,
+        'unread_count': 0,
+    })
 

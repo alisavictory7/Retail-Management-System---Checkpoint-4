@@ -99,6 +99,10 @@ class Config:
 
     QUALITY_SCENARIO_TAGS: Final[str] = os.getenv("QUALITY_SCENARIO_TAGS", "availability,performance")
 
+    # Checkpoint 4: Feature configurations
+    LOW_STOCK_THRESHOLD: Final[int] = int(os.getenv("LOW_STOCK_THRESHOLD", "5"))
+    ORDER_HISTORY_PAGE_SIZE: Final[int] = int(os.getenv("ORDER_HISTORY_PAGE_SIZE", "20"))
+
     DEFAULT_TIMEZONE: Final[str] = os.getenv("DEFAULT_TIMEZONE", "UTC")
     SUPER_ADMIN_TOKEN: Final[str] = os.getenv("SUPER_ADMIN_TOKEN", "CP3_SUPERADMIN_TOKEN_N9fA7qLzX4")
     SUPER_ADMIN_USERNAME: Final[str] = os.getenv("SUPER_ADMIN_USERNAME", "super_admin")

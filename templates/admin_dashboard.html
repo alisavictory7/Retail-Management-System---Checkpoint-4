@@ -51,6 +51,94 @@
             </div>
         </section>
 
+        <!-- CP4 Feature 2.2: Low Stock Alerts -->
+        <section class="bg-white p-6 rounded-xl shadow space-y-4">
+            <div class="flex items-center justify-between">
+                <div>
+                    <h2 class="text-xl font-semibold flex items-center gap-2">
+                        <svg class="w-6 h-6 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
+                        </svg>
+                        Low Stock Alerts
+                    </h2>
+                    <p class="text-sm text-gray-500">Products below threshold ({{ low_stock_summary.threshold }} units)</p>
+                </div>
+                <div class="flex items-center gap-4">
+                    <div class="text-center">
+                        <p class="text-2xl font-bold {{ 'text-red-600' if low_stock_summary.critical_count > 0 else 'text-gray-400' }}">{{ low_stock_summary.critical_count }}</p>
+                        <p class="text-xs text-gray-500">Critical</p>
+                    </div>
+                    <div class="text-center">
+                        <p class="text-2xl font-bold {{ 'text-yellow-600' if low_stock_summary.warning_count > 0 else 'text-gray-400' }}">{{ low_stock_summary.warning_count }}</p>
+                        <p class="text-xs text-gray-500">Warning</p>
+                    </div>
+                    <div class="text-center">
+                        <p class="text-2xl font-bold {{ 'text-orange-600' if low_stock_summary.total_alerts > 0 else 'text-gray-400' }}">{{ low_stock_summary.total_alerts }}</p>
+                        <p class="text-xs text-gray-500">Total</p>
+                    </div>
+                </div>
+            </div>
+            
+            {% if low_stock_summary.alerts %}
+            <div class="overflow-x-auto">
+                <table class="min-w-full text-sm">
+                    <thead class="bg-gray-50 text-gray-500 uppercase text-xs">
+                        <tr>
+                            <th class="px-4 py-2 text-left">Product</th>
+                            <th class="px-4 py-2 text-center">Current Stock</th>
+                            <th class="px-4 py-2 text-center">Threshold</th>
+                            <th class="px-4 py-2 text-center">Severity</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y">
+                        {% for alert in low_stock_summary.alerts %}
+                        <tr class="hover:bg-gray-50">
+                            <td class="px-4 py-3">
+                                <div class="flex items-center gap-2">
+                                    <span class="font-medium text-gray-900">{{ alert.product_name }}</span>
+                                    <span class="text-xs text-gray-400">(ID: {{ alert.product_id }})</span>
+                                </div>
+                            </td>
+                            <td class="px-4 py-3 text-center">
+                                <span class="font-bold {{ 'text-red-600' if alert.current_stock == 0 else 'text-gray-900' }}">
+                                    {{ alert.current_stock }}
+                                </span>
+                            </td>
+                            <td class="px-4 py-3 text-center text-gray-500">{{ alert.threshold }}</td>
+                            <td class="px-4 py-3 text-center">
+                                {% if alert.severity == 'critical' %}
+                                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                                    <svg class="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                                        <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"></path>
+                                    </svg>
+                                    Critical
+                                </span>
+                                {% elif alert.severity == 'warning' %}
+                                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
+                                    Warning
+                                </span>
+                                {% else %}
+                                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-800">
+                                    Low
+                                </span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <div class="text-center py-8">
+                <svg class="w-12 h-12 text-green-300 mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                </svg>
+                <p class="text-gray-500">All products are well-stocked!</p>
+                <p class="text-sm text-gray-400">No products below the {{ low_stock_summary.threshold }}-unit threshold</p>
+            </div>
+            {% endif %}
+        </section>
+
         <section class="bg-white p-6 rounded-xl shadow space-y-4">
             <header class="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
                 <div>
