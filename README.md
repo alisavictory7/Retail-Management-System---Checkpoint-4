@@ -3,7 +3,7 @@
 **Author:** Alisa  
 **Course:** Software Architecture & Design  
 **Repository:** https://github.com/alisavictory7/Retail-Management-System---Checkpoint-4
-
+**Video Link:** https://drive.google.com/file/d/1huvGRsepNmISu72zMLbn0PRwbTSoN99F/view?usp=sharing
 ---
 
 ## 📝 Project Description
