@@ -1,4 +1,20 @@
 {% set show_storefront = show_storefront_link if show_storefront_link is defined else True %}
+<style>
+    .line-clamp-2 {
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+    }
+    @keyframes pulse-ring {
+        0% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.4); }
+        70% { box-shadow: 0 0 0 6px rgba(16, 185, 129, 0); }
+        100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+    }
+    .animate-pulse-ring {
+        animation: pulse-ring 2s infinite;
+    }
+</style>
 <nav class="bg-white shadow-sm border-b border-gray-100 sticky top-0 z-40">
     <div class="container mx-auto px-4">
         <div class="flex items-center justify-between h-16">
@@ -172,11 +188,61 @@
 </div>
 {% endif %}
 
+<!-- Notification Detail Modal -->
+<div id="notification-modal" class="fixed inset-0 z-50 hidden">
+    <!-- Backdrop -->
+    <div class="fixed inset-0 bg-black/50 backdrop-blur-sm" onclick="closeNotificationModal()"></div>
+    
+    <!-- Modal Content -->
+    <div class="fixed inset-0 flex items-center justify-center p-4 pointer-events-none">
+        <div class="bg-white rounded-2xl shadow-2xl max-w-md w-full pointer-events-auto transform transition-all" id="notification-modal-content">
+            <!-- Header -->
+            <div class="p-5 border-b border-gray-100" id="notification-modal-header">
+                <div class="flex items-start justify-between gap-4">
+                    <div class="flex items-center gap-3">
+                        <div id="notification-modal-icon" class="w-10 h-10 rounded-xl flex items-center justify-center">
+                            <!-- Icon inserted by JS -->
+                        </div>
+                        <div>
+                            <h3 id="notification-modal-title" class="text-lg font-semibold text-gray-900"></h3>
+                            <p id="notification-modal-time" class="text-xs text-gray-500 mt-0.5"></p>
+                        </div>
+                    </div>
+                    <button onclick="closeNotificationModal()" class="text-gray-400 hover:text-gray-600 transition p-1 rounded-lg hover:bg-gray-100">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+            
+            <!-- Body -->
+            <div class="p-5">
+                <p id="notification-modal-message" class="text-gray-700 leading-relaxed"></p>
+            </div>
+            
+            <!-- Footer with Actions -->
+            <div class="p-5 border-t border-gray-100 bg-gray-50 rounded-b-2xl flex flex-col sm:flex-row gap-3">
+                <button onclick="closeNotificationModal()" class="flex-1 px-4 py-2.5 text-sm font-medium text-gray-700 bg-white border border-gray-200 rounded-xl hover:bg-gray-50 transition">
+                    Close
+                </button>
+                <button id="notification-modal-action" data-href="#" onclick="navigateToNotificationAction()" class="flex-1 px-4 py-2.5 text-sm font-medium text-white rounded-xl transition text-center flex items-center justify-center gap-2 cursor-pointer">
+                    <span id="notification-modal-action-text">View Details</span>
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7l5 5m0 0l-5 5m5-5H6"></path>
+                    </svg>
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- JavaScript for Dropdowns and Notifications -->
 <script>
 let notificationDropdownOpen = false;
 let adminDropdownOpen = false;
 let userDropdownOpen = false;
+let currentNotifications = [];
 
 function toggleNotifications() {
     const dropdown = document.getElementById('notification-dropdown');
@@ -219,45 +285,286 @@ function closeOtherDropdowns(except) {
     }
 }
 
-function loadNotifications() {
-    fetch('/api/notifications?limit=10')
-        .then(response => response.json())
-        .then(data => {
-            const listEl = document.getElementById('notification-list');
-            if (data.notifications && data.notifications.length > 0) {
-                listEl.innerHTML = data.notifications.map(n => `
-                    <div class="p-3 border-b border-gray-50 hover:bg-gray-50 cursor-pointer ${n.read ? 'opacity-60' : ''}" 
-                         onclick="markNotificationRead('${n.id}')">
-                        <div class="flex items-start gap-2">
-                            <div class="flex-shrink-0 mt-1">
-                                ${n.type === 'rma_status' ? 
-                                    '<svg class="w-4 h-4 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path></svg>' :
-                                    '<svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>'
-                                }
-                            </div>
-                            <div class="flex-1 min-w-0">
-                                <p class="text-sm font-medium text-gray-900">${n.title}</p>
-                                <p class="text-xs text-gray-500 truncate">${n.message}</p>
-                                <p class="text-xs text-gray-400 mt-1">${new Date(n.created_at).toLocaleString()}</p>
-                            </div>
-                            ${!n.read ? '<span class="w-2 h-2 bg-emerald-500 rounded-full flex-shrink-0"></span>' : ''}
-                        </div>
-                    </div>
-                `).join('');
-            } else {
-                listEl.innerHTML = '<div class="p-6 text-center text-gray-400 text-sm">No notifications yet</div>';
-            }
-            updateBadge(data.unread_count);
-        })
-        .catch(err => console.error('Failed to load notifications:', err));
+function getNotificationIcon(type) {
+    const icons = {
+        'rma_status': {
+            svg: '<svg class="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6"></path></svg>',
+            bgClass: 'bg-blue-100',
+            smallSvg: '<svg class="w-4 h-4 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6"></path></svg>'
+        },
+        'low_stock': {
+            svg: '<svg class="w-5 h-5 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>',
+            bgClass: 'bg-amber-100',
+            smallSvg: '<svg class="w-4 h-4 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>'
+        },
+        'default': {
+            svg: '<svg class="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"></path></svg>',
+            bgClass: 'bg-gray-100',
+            smallSvg: '<svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>'
+        }
+    };
+    return icons[type] || icons['default'];
 }
 
-function markNotificationRead(notificationId) {
-    fetch(`/api/notifications/${notificationId}/read`, { method: 'POST' })
-        .then(response => response.json())
+function getNotificationAction(notification) {
+    const actions = {
+        'rma_status': {
+            url: notification.reference_id 
+                ? `{{ url_for('returns.view_returns') }}?highlight=${notification.reference_id}` 
+                : '{{ url_for("returns.view_returns") }}',
+            text: 'View Returns',
+            btnClass: 'bg-blue-600 hover:bg-blue-700'
+        },
+        'low_stock': {
+            url: '{{ url_for("manage_store") }}#panel-alerts',
+            text: 'View Stock Alerts',
+            btnClass: 'bg-amber-600 hover:bg-amber-700'
+        },
+        'default': {
+            url: '{{ url_for("index") }}',
+            text: 'Go to Store',
+            btnClass: 'bg-emerald-600 hover:bg-emerald-700'
+        }
+    };
+    return actions[notification.type] || actions['default'];
+}
+
+let isLoadingNotifications = false;
+
+function loadNotifications() {
+    // Prevent multiple simultaneous loads
+    if (isLoadingNotifications) {
+        return;
+    }
+    
+    isLoadingNotifications = true;
+    const listEl = document.getElementById('notification-list');
+    
+    // Show loading state
+    listEl.innerHTML = `
+        <div class="p-8 text-center">
+            <div class="inline-block animate-spin rounded-full h-6 w-6 border-b-2 border-emerald-600"></div>
+            <p class="text-gray-500 text-sm mt-2">Loading notifications...</p>
+        </div>
+    `;
+    
+    fetch('/api/notifications?limit=10')
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            return response.json();
+        })
         .then(data => {
-            updateBadge(data.unread_count);
-            loadNotifications();
+            currentNotifications = data.notifications || [];
+            
+            if (currentNotifications.length > 0) {
+                listEl.innerHTML = currentNotifications.map(n => {
+                    const iconData = getNotificationIcon(n.type);
+                    return `
+                    <div class="p-3 border-b border-gray-50 hover:bg-gray-50 cursor-pointer transition ${n.read ? 'opacity-60' : ''}" 
+                         onclick="openNotificationModal('${n.id}')">
+                        <div class="flex items-start gap-3">
+                            <div class="flex-shrink-0 mt-0.5">
+                                ${iconData.smallSvg}
+                            </div>
+                            <div class="flex-1 min-w-0">
+                                <p class="text-sm font-medium text-gray-900">${escapeHtml(n.title)}</p>
+                                <p class="text-xs text-gray-500 line-clamp-2 mt-0.5">${escapeHtml(n.message)}</p>
+                                <p class="text-xs text-gray-400 mt-1">${formatRelativeTime(n.created_at)}</p>
+                            </div>
+                            <div class="flex items-center gap-2 flex-shrink-0">
+                                ${!n.read ? '<span class="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></span>' : ''}
+                                <svg class="w-4 h-4 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+                                </svg>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                }).join('');
+            } else {
+                listEl.innerHTML = `
+                    <div class="p-8 text-center">
+                        <svg class="w-12 h-12 text-gray-300 mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"></path>
+                        </svg>
+                        <p class="text-gray-500 text-sm font-medium">No notifications</p>
+                        <p class="text-gray-400 text-xs mt-1">You're all caught up!</p>
+                    </div>
+                `;
+            }
+            // Update badge with the count from the API response
+            updateBadge(data.unread_count || 0);
+        })
+        .catch(err => {
+            console.error('Failed to load notifications:', err);
+            listEl.innerHTML = `
+                <div class="p-8 text-center">
+                    <p class="text-red-500 text-sm font-medium">Failed to load notifications</p>
+                    <p class="text-gray-400 text-xs mt-1">Please try again</p>
+                </div>
+            `;
+        })
+        .finally(() => {
+            isLoadingNotifications = false;
+        });
+}
+
+function openNotificationModal(notificationId) {
+    const notification = currentNotifications.find(n => n.id === notificationId);
+    if (!notification) return;
+    
+    const modal = document.getElementById('notification-modal');
+    const iconData = getNotificationIcon(notification.type);
+    const action = getNotificationAction(notification);
+    
+    // Set icon
+    const iconEl = document.getElementById('notification-modal-icon');
+    iconEl.className = `w-10 h-10 rounded-xl flex items-center justify-center ${iconData.bgClass}`;
+    iconEl.innerHTML = iconData.svg;
+    
+    // Set content
+    document.getElementById('notification-modal-title').textContent = notification.title;
+    document.getElementById('notification-modal-time').textContent = formatRelativeTime(notification.created_at);
+    document.getElementById('notification-modal-message').textContent = notification.message;
+    
+    // Set action button
+    const actionBtn = document.getElementById('notification-modal-action');
+    actionBtn.setAttribute('data-href', action.url);
+    actionBtn.className = `flex-1 px-4 py-2.5 text-sm font-medium text-white rounded-xl transition text-center flex items-center justify-center gap-2 cursor-pointer ${action.btnClass}`;
+    document.getElementById('notification-modal-action-text').textContent = action.text;
+    
+    // Show modal with animation
+    modal.classList.remove('hidden');
+    setTimeout(() => {
+        document.getElementById('notification-modal-content').classList.add('scale-100', 'opacity-100');
+    }, 10);
+    
+    // Mark as read and update UI immediately
+    markNotificationRead(notificationId, true); // Reload notifications to update UI
+    
+    // Close dropdown
+    document.getElementById('notification-dropdown')?.classList.add('hidden');
+    notificationDropdownOpen = false;
+}
+
+function closeNotificationModal() {
+    const modal = document.getElementById('notification-modal');
+    const content = document.getElementById('notification-modal-content');
+    content.classList.remove('scale-100', 'opacity-100');
+    setTimeout(() => {
+        modal.classList.add('hidden');
+    }, 150);
+}
+
+function navigateToNotificationAction() {
+    const actionBtn = document.getElementById('notification-modal-action');
+    const targetUrl = actionBtn.getAttribute('data-href');
+    
+    if (!targetUrl || targetUrl === '#') return;
+    
+    // Parse the target URL to separate path and hash
+    const [targetPath, targetHash] = targetUrl.split('#');
+    const currentPath = window.location.pathname;
+    const currentHash = window.location.hash.replace('#', '');
+    
+    // Check if we're already on the same page
+    const isSamePath = currentPath === targetPath || 
+                       (targetPath === '' && currentPath === window.location.pathname);
+    
+    if (isSamePath && targetHash) {
+        // We're on the same page - close modal and switch tab/refresh
+        closeNotificationModal();
+        
+        // If there's a hash (like #panel-alerts), switch to that tab
+        if (typeof showTab === 'function') {
+            showTab(targetHash.replace('panel-', ''));
+        }
+        
+        // Scroll to the section
+        const targetElement = document.getElementById(targetHash);
+        if (targetElement) {
+            targetElement.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+        
+        // Update the URL hash without reloading
+        window.location.hash = targetHash;
+    } else if (isSamePath && !targetHash) {
+        // Same page without hash - force reload
+        closeNotificationModal();
+        window.location.reload();
+    } else {
+        // Different page - navigate normally
+        window.location.href = targetUrl;
+    }
+}
+
+function updateNotificationInList(notificationId, isRead) {
+    // Update the notification in the currentNotifications array
+    const notification = currentNotifications.find(n => n.id === notificationId);
+    if (notification) {
+        notification.read = isRead;
+    }
+    
+    // Update the visual indicator in the list
+    const listEl = document.getElementById('notification-list');
+    if (!listEl) return;
+    
+    // Find the notification element by searching for the onclick attribute
+    const notificationEls = listEl.querySelectorAll('[onclick*="openNotificationModal"]');
+    for (const el of notificationEls) {
+        const onclickAttr = el.getAttribute('onclick');
+        if (onclickAttr && onclickAttr.includes(notificationId)) {
+            if (isRead) {
+                el.classList.add('opacity-60');
+                const unreadDot = el.querySelector('.bg-emerald-500');
+                if (unreadDot) {
+                    unreadDot.remove();
+                }
+            } else {
+                el.classList.remove('opacity-60');
+                // Add unread dot if not present
+                const unreadDot = el.querySelector('.bg-emerald-500');
+                if (!unreadDot) {
+                    const dotContainer = el.querySelector('.flex.items-center.gap-2');
+                    if (dotContainer) {
+                        const dot = document.createElement('span');
+                        dot.className = 'w-2 h-2 bg-emerald-500 rounded-full animate-pulse';
+                        dotContainer.insertBefore(dot, dotContainer.firstChild);
+                    }
+                }
+            }
+            break;
+        }
+    }
+}
+
+function markNotificationRead(notificationId, reload = true) {
+    // Optimistically update the UI immediately
+    updateNotificationInList(notificationId, true);
+    
+    fetch(`/api/notifications/${notificationId}/read`, { method: 'POST' })
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            return response.json();
+        })
+        .then(data => {
+            updateBadge(data.unread_count || 0);
+            if (reload) {
+                // Reload to ensure consistency with server state
+                loadNotifications();
+            }
+        })
+        .catch(err => {
+            console.error('Failed to mark notification as read:', err);
+            // Revert optimistic update on error
+            updateNotificationInList(notificationId, false);
+            if (reload) {
+                loadNotifications();
+            }
         });
 }
 
@@ -282,6 +589,45 @@ function updateBadge(count) {
     }
 }
 
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+function formatRelativeTime(dateString) {
+    const date = new Date(dateString);
+    const now = new Date();
+    const diffMs = now - date;
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMs / 3600000);
+    const diffDays = Math.floor(diffMs / 86400000);
+    
+    if (diffMins < 1) return 'Just now';
+    if (diffMins < 60) return `${diffMins}m ago`;
+    if (diffHours < 24) return `${diffHours}h ago`;
+    if (diffDays < 7) return `${diffDays}d ago`;
+    return date.toLocaleDateString();
+}
+
+// Load badge count on page load
+document.addEventListener('DOMContentLoaded', function() {
+    // Load unread count to update badge
+    fetch('/api/notifications?unread_only=true&limit=1')
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            return response.json();
+        })
+        .then(data => {
+            updateBadge(data.unread_count || 0);
+        })
+        .catch(err => {
+            console.error('Failed to load notification count:', err);
+        });
+});
+
 // Close dropdowns when clicking outside
 document.addEventListener('click', function(event) {
     const notifContainer = document.getElementById('notification-container');
@@ -299,6 +645,13 @@ document.addEventListener('click', function(event) {
     if (userContainer && !userContainer.contains(event.target)) {
         document.getElementById('user-dropdown')?.classList.add('hidden');
         userDropdownOpen = false;
+    }
+});
+
+// Close modal with Escape key
+document.addEventListener('keydown', function(event) {
+    if (event.key === 'Escape') {
+        closeNotificationModal();
     }
 });
 </script>

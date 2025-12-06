@@ -1,0 +1,17 @@
+id,name,description,price,stock,category,country_of_origin,brand,volume_ml
+BW-5001,Vitamin C Brightening Serum,20% L-Ascorbic acid with hyaluronic acid,34.99,420,Skincare,South Korea,GlowLab,30
+BW-5002,Argan Oil Hair Treatment,100% pure cold-pressed organic,24.99,580,Haircare,Morocco,SilkStrand,100
+BW-5003,Retinol Night Cream,0.5% retinol with peptides anti-aging,44.99,285,Skincare,France,AgelessBeauty,50
+BW-5004,Charcoal Detox Face Mask,Activated charcoal clay deep pore cleansing,18.99,645,Skincare,USA,PureSkin,120
+BW-5005,Biotin Hair Growth Supplements,5000mcg with keratin 90-day supply,29.99,380,Supplements,USA,VitaBoost,90 capsules
+BW-5006,SPF 50 Mineral Sunscreen,Zinc oxide reef-safe water resistant,22.99,720,Sun Care,Australia,SunShield,100
+BW-5007,Hyaluronic Acid Moisturizer,Multi-molecular weight deep hydration,38.99,345,Skincare,Japan,HydraGlow,60
+BW-5008,Tea Tree Acne Treatment,2% salicylic acid spot treatment,14.99,890,Skincare,Australia,ClearSkin,30
+BW-5009,Collagen Peptides Powder,Grass-fed type I and III 30 servings,39.99,265,Supplements,USA,VitaBoost,300g
+BW-5010,Rosehip Seed Oil Organic,Cold-pressed anti-scar brightening,19.99,520,Skincare,Chile,NaturalGlow,30
+BW-5011,Sulfate-Free Shampoo,Color-safe with argan and keratin,16.99,680,Haircare,USA,SilkStrand,350
+BW-5012,Niacinamide Pore Refining Serum,10% niacinamide with zinc,24.99,445,Skincare,South Korea,GlowLab,30
+BW-5013,Lavender Essential Oil,100% pure therapeutic grade,12.99,920,Aromatherapy,France,AromaZen,15
+BW-5014,Jade Facial Roller Set,Includes gua sha anti-puffiness tools,22.99,385,Tools,China,BeautyRitual,2 pieces
+BW-5015,Probiotic Digestive Supplements,50 billion CFU 16 strains 60ct,34.99,295,Supplements,USA,VitaBoost,60 capsules
+

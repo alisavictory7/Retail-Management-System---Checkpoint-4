@@ -58,25 +58,49 @@ def db_session(test_db):
     finally:
         # Clean up test data to prevent test interference
         try:
-            from src.models import OrderQueue, AuditLog, SystemMetrics, TestRecord, FeatureToggle, CircuitBreakerState, MessageQueue, User, Partner, PartnerAPIKey, FlashSale, Sale
-            # Clean up in reverse dependency order
-            session.query(PartnerAPIKey).delete()
-            session.query(FlashSale).delete()
-            session.query(Sale).delete()
-            session.query(OrderQueue).delete()
-            session.query(AuditLog).delete()
-            session.query(SystemMetrics).delete()
-            session.query(TestRecord).delete()
-            session.query(FeatureToggle).delete()
-            session.query(CircuitBreakerState).delete()
-            session.query(MessageQueue).delete()
+            from src.models import (
+                OrderQueue, AuditLog, SystemMetrics, TestRecord, FeatureToggle, 
+                CircuitBreakerState, MessageQueue, User, Partner, PartnerAPIKey, 
+                FlashSale, Sale, ReturnRequest, ReturnItem, Refund, SaleItem
+            )
+            # Clean up in proper dependency order (most dependent first)
+            # Use synchronize_session=False for better performance
+            
+            # First, clean up return-related tables that reference Sale
+            try:
+                session.query(Refund).delete(synchronize_session=False)
+                session.query(ReturnItem).delete(synchronize_session=False)
+                session.query(ReturnRequest).delete(synchronize_session=False)
+            except Exception:
+                session.rollback()
+            
+            # Clean up SaleItem before Sale
+            try:
+                session.query(SaleItem).delete(synchronize_session=False)
+            except Exception:
+                session.rollback()
+            
+            # Now clean up the rest
+            session.query(PartnerAPIKey).delete(synchronize_session=False)
+            session.query(FlashSale).delete(synchronize_session=False)
+            session.query(Sale).delete(synchronize_session=False)
+            session.query(OrderQueue).delete(synchronize_session=False)
+            session.query(AuditLog).delete(synchronize_session=False)
+            session.query(SystemMetrics).delete(synchronize_session=False)
+            session.query(TestRecord).delete(synchronize_session=False)
+            session.query(FeatureToggle).delete(synchronize_session=False)
+            session.query(CircuitBreakerState).delete(synchronize_session=False)
+            session.query(MessageQueue).delete(synchronize_session=False)
             # Only delete test users/partners, not fixture ones
-            session.query(User).filter(User.username.like('test_%')).delete()
-            session.query(Partner).filter(Partner.name.like('Test%')).delete()
+            session.query(User).filter(User.username.like('test_%')).delete(synchronize_session=False)
+            session.query(Partner).filter(Partner.name.like('Test%')).delete(synchronize_session=False)
             session.commit()
         except Exception as e:
             print(f"Database cleanup warning: {e}")
-            session.rollback()
+            try:
+                session.rollback()
+            except:
+                pass
         finally:
             session.close()
 

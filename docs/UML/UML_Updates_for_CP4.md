@@ -190,8 +190,75 @@ All diagrams use PlantUML syntax and can be rendered using:
 | Use Case | `use-case-diagram.puml` | Use-Case View |
 | Class | `class-diagram.puml` | Logical View |
 | Sequence (RMA Notifications) | `sequence-diagram-rma-notifications.puml` | Process View |
+| Sequence (Partner Ingest) | `sequence-diagram-partner-ingest.puml` | Process View (CP2) |
 | Deployment | `deployment-diagram.puml` | Deployment View |
 | Package | `package-diagram.puml` | Implementation View |
 | Sequence (Success) | `sequence-diagram-success.puml` | Process View (CP3) |
 | Sequence (Exceptions) | `sequence-diagram-exceptions.puml` | Process View (CP3) |
+
+---
+
+## CP2: Partner (VAR) Catalog Ingest Updates
+
+The class diagram and use-case diagram have been updated to include the Partner (VAR) Catalog Ingest feature (CP2):
+
+### Class Diagram Additions
+
+**New Package: "Partner (VAR) Catalog Ingest"**
+
+```
+┌────────────────────────────────────────────────────┐
+│       Partner (VAR) Catalog Ingest                 │
+├────────────────────────────────────────────────────┤
+│  Partner                                           │
+│    + partnerID: int                                │
+│    + name: str                                     │
+│    + api_endpoint: str                             │
+│    + sync_frequency: int                           │
+│    + last_sync: datetime                           │
+│    + status: str                                   │
+├────────────────────────────────────────────────────┤
+│  PartnerAPIKey                                     │
+│    + keyID: int                                    │
+│    + api_key: str                                  │
+│    + expires_at: datetime                          │
+│    + is_active: bool                               │
+├────────────────────────────────────────────────────┤
+│  PartnerProduct                                    │
+│    + partnerProductID: int                         │
+│    + external_product_id: str                      │
+│    + sync_status: str                              │
+│    + sync_data: json                               │
+├────────────────────────────────────────────────────┤
+│  PartnerCatalogService                             │
+│    + create_partner()                              │
+│    + authenticate_api_key()                        │
+│    + validate_input()                              │
+│    + ingest_csv_file()                             │
+│    + ingest_json_file()                            │
+│    + sync_partner_catalog()                        │
+│    + start_scheduler()                             │
+├────────────────────────────────────────────────────┤
+│  CSVDataAdapter / JSONDataAdapter / XMLDataAdapter │
+│    + adapt(data): Dict                             │
+│    + can_handle(data): bool                        │
+└────────────────────────────────────────────────────┘
+```
+
+### Use-Case Diagram Additions
+
+- Added **"Partner (VAR) Catalog Ingest"** rectangle with:
+  - `Upload CSV/JSON Feed`
+  - `Manage Partners`
+  - `Schedule Periodic Sync`
+  - `View Catalog Statistics`
+
+### Architectural Patterns Applied
+
+| ADR | Pattern | Implementation |
+|-----|---------|----------------|
+| ADR 6 (S.1) | Authenticate Actors | API key validation in `authenticate_api_key()` |
+| ADR 7 (S.2) | Validate Input | SQL injection prevention in `validate_input()` |
+| ADR 8/9 (M.1) | Adapter Pattern | `CSVDataAdapter`, `JSONDataAdapter`, `XMLDataAdapter` |
+| ADR 15/16 (I.2) | Publish-Subscribe | Event publishing via `MessageQueue` |
 

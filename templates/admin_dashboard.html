@@ -301,7 +301,10 @@
                         <h3 class="text-lg font-semibold text-gray-900">Quality Scenarios</h3>
                         <p class="text-sm text-gray-500">A.1 Availability & P.1 Performance</p>
                     </div>
-                    <a href="{{ url_for('admin_metrics') }}" class="text-sm text-blue-500 hover:underline">Export JSON</a>
+                    <div class="flex gap-3">
+                        <a href="{{ url_for('quality_scenario_monitoring') }}" class="text-sm text-emerald-500 hover:underline font-medium">Live Test</a>
+                        <a href="{{ url_for('admin_metrics') }}" class="text-sm text-blue-500 hover:underline">Export JSON</a>
+                    </div>
                 </div>
                 <div class="space-y-4">
                     <!-- Availability A.1 -->

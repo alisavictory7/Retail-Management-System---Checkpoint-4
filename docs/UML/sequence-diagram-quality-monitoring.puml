@@ -1,0 +1,144 @@
+@startuml Quality Scenario Monitoring Sequence Diagram
+
+!theme plain
+skinparam dpi 120
+skinparam sequenceMessageAlign center
+skinparam sequenceArrowFontSize 11
+skinparam participantPadding 15
+skinparam boxPadding 10
+skinparam noteBackgroundColor #FFF3CD
+skinparam noteBorderColor #856404
+
+title Quality Scenario Monitoring - Interactive Testing Flow
+
+box "Frontend" #E3F2FD
+    participant "Admin Browser" as Browser
+end box
+
+box "Backend" #E8F5E9
+    participant "Flask App" as Flask
+    participant "Quality Tactics\nManager" as QualityManager
+    participant "Circuit Breaker" as CB
+    participant "Throttling\nManager" as Throttle
+    participant "Observability" as Metrics
+end box
+
+== A.1 Availability Scenario Testing ==
+
+Browser -> Flask: GET /admin/quality-monitoring
+activate Flask
+Flask --> Browser: Render monitoring page\nwith current metrics
+deactivate Flask
+
+note right of Browser
+  Admin configures test parameters:
+  - Failure Rate: 0-100%
+  - CB Threshold: 1-20 failures
+  - Recovery Timeout: 10-300s
+end note
+
+Browser -> Flask: POST /admin/quality-monitoring/test/availability
+activate Flask
+
+Flask -> QualityManager: test_availability_scenario(params)
+activate QualityManager
+
+loop 100 simulated requests
+    QualityManager -> CB: execute_with_circuit_breaker(payment_func)
+    activate CB
+    alt Random failure (based on failure_rate)
+        CB -> CB: record_failure()
+        CB --> QualityManager: (False, error_msg)
+    else Success
+        CB -> CB: record_success()
+        CB --> QualityManager: (True, result)
+    end
+    deactivate CB
+end
+
+QualityManager -> Metrics: record_event("availability_test_completed")
+QualityManager -> Metrics: increment_counter("quality_scenario_tests_total")
+
+QualityManager --> Flask: {success_rate, mttr, circuit_breaker_trips, fulfilled}
+deactivate QualityManager
+
+Flask --> Browser: JSON Response with test results
+deactivate Flask
+
+Browser -> Browser: Update UI:\n- Success Rate display\n- MTTR display\n- Status indicator\n- Add log entry
+
+== P.1 Performance Scenario Testing ==
+
+note right of Browser
+  Admin configures test parameters:
+  - Simulated Load: 10-2000 RPS
+  - Throttle Limit: 10-1000 RPS
+  - Processing Time: 10-1000ms
+end note
+
+Browser -> Flask: POST /admin/quality-monitoring/test/performance
+activate Flask
+
+Flask -> QualityManager: test_performance_scenario(params)
+activate QualityManager
+QualityManager -> Throttle: update max_requests_per_second
+activate Throttle
+
+loop min(simulated_load, 500) requests
+    QualityManager -> Throttle: check_throttling(request_data)
+    alt Allowed
+        Throttle --> QualityManager: (True, "allowed")
+        QualityManager -> QualityManager: sleep(processing_time)
+        QualityManager -> Metrics: observe_latency("order_processing_latency_ms")
+    else Throttled
+        Throttle --> QualityManager: (False, "throttled")
+        QualityManager -> QualityManager: record_throttled_request()
+    end
+end
+
+deactivate Throttle
+
+QualityManager -> QualityManager: Calculate P95 latency
+
+QualityManager -> Metrics: record_event("performance_test_completed")
+QualityManager -> Metrics: increment_counter("quality_scenario_tests_total")
+
+QualityManager --> Flask: {p95_latency, avg_latency, requests_processed, fulfilled}
+deactivate QualityManager
+
+Flask --> Browser: JSON Response with test results
+deactivate Flask
+
+Browser -> Browser: Update UI:\n- P95 Latency display\n- Status indicator\n- Add log entry
+
+== Reset Operations ==
+
+alt Reset Availability
+    Browser -> Flask: POST /admin/quality-monitoring/reset/availability
+    activate Flask
+    Flask -> CB: reset()
+    Flask -> Metrics: record_event("availability_metrics_reset")
+    Flask --> Browser: {success: true}
+    deactivate Flask
+else Reset Performance
+    Browser -> Flask: POST /admin/quality-monitoring/reset/performance
+    activate Flask
+    Flask -> Throttle: clear request_times
+    Flask -> Metrics: record_event("performance_metrics_reset")
+    Flask --> Browser: {success: true}
+    deactivate Flask
+end
+
+note over Browser, Metrics
+  **Quality Scenario Targets:**
+  A.1: Success Rate ≥99%, MTTR <5min
+  P.1: P95 Latency ≤500ms
+  
+  **Interactive Controls:**
+  - Real-time parameter adjustment
+  - Live test execution
+  - Immediate result visualization
+end note
+
+@enduml
+

@@ -56,13 +56,19 @@ rectangle "Admin & Observability" {
     usecase "Manage Products" as UC_ProductAdmin
     usecase "Create Flash Sales" as UC_FlashSales
     usecase "View Low Stock Alerts" as UC_LowStockAlerts
-    usecase "Monitor Quality Scenarios (A.1 / P.1)" as UC_QualityMonitoring
+    usecase "Interactive Quality Scenario Testing" as UC_QualityMonitoring
+    usecase "Live Test A.1 Availability" as UC_TestA1
+    usecase "Live Test P.1 Performance" as UC_TestP1
     usecase "Manage Returns" as UC_ReturnsAdmin
 }
 
-rectangle "Partner Integration" {
+rectangle "Partner (VAR) Catalog Ingest" #FFF3E0 {
     usecase "Sync Partner Catalog" as UC_PartnerSync
     usecase "Validate Partner Feed" as UC_PartnerValidate
+    usecase "Upload CSV/JSON Feed" as UC_UploadFeed
+    usecase "Manage Partners" as UC_ManagePartners
+    usecase "Schedule Periodic Sync" as UC_ScheduleSync
+    usecase "View Catalog Statistics" as UC_CatalogStats
 }
 
 Customer --> UC_Browse
@@ -90,6 +96,11 @@ Admin --> UC_QualityMonitoring
 Partner --> UC_PartnerSync
 Partner --> UC_PartnerValidate
 
+Admin --> UC_ManagePartners
+Admin --> UC_UploadFeed
+Admin --> UC_ScheduleSync
+Admin --> UC_CatalogStats
+
 PaymentService --> UC_Checkout
 PaymentService --> UC_Refund
 
@@ -108,6 +119,10 @@ UC_OrderHistory ..> UC_SearchOrders : <<optional>>
 UC_Authorize ..> UC_RMANotification : <<triggers>>
 UC_Inspection ..> UC_RMANotification : <<triggers>>
 UC_Refund ..> UC_RMANotification : <<triggers>>
+UC_UploadFeed ..> UC_PartnerValidate : <<includes>>
+UC_PartnerSync ..> UC_PartnerValidate : <<includes>>
+UC_ManagePartners ..> UC_ScheduleSync : <<optional>>
+UC_ManageStore ..> UC_ManagePartners : <<includes>>
 
 note right of UC_Refund
   Refund Execution
@@ -132,6 +147,17 @@ note right of UC_Dashboard
   - Quality scenario monitoring
 end note
 
+note right of UC_QualityMonitoring
+  CP4: Interactive Quality Monitoring
+  - Live test A.1 (Circuit Breaker)
+  - Live test P.1 (Throttling)
+  - Configurable sliders & switches
+  - Real-time test results log
+end note
+
+UC_QualityMonitoring ..> UC_TestA1 : <<includes>>
+UC_QualityMonitoring ..> UC_TestP1 : <<includes>>
+
 note right of UC_OrderHistory
   CP4 Feature 2.1
   - Filter by status, date range
@@ -144,6 +170,16 @@ note right of UC_RMANotification
   - Pub-Sub pattern for status changes
   - In-app notification panel
   - Badge count in navbar
+end note
+
+note right of UC_ManagePartners
+  CP2: Partner (VAR) Catalog Ingest
+  - Add/edit/delete partners
+  - Upload CSV/JSON feeds
+  - Configure sync schedules
+  - ADR 6: Authenticate Actors
+  - ADR 7: Validate Input
+  - ADR 9: Adapter Pattern
 end note
 
 @enduml

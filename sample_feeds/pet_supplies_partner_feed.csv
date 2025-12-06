@@ -1,0 +1,17 @@
+id,name,description,price,stock,category,country_of_origin,brand,pet_type,weight_kg
+PET-6001,Premium Dry Dog Food 30lb,Grain-free salmon and sweet potato recipe,64.99,1,Food,USA,NaturaPet,Dog,13.6
+PET-6002,Interactive Cat Toy Set 10pc,Feathers bells mice variety pack,14.99,680,Toys,China,PlayPaws,Cat,0.35
+PET-6003,Orthopedic Dog Bed Large,Memory foam waterproof removable cover,79.99,145,Bedding,China,ComfortPet,Dog,4.8
+PET-6004,Automatic Pet Water Fountain,2L capacity filtered circulation,34.99,290,Feeding,China,AquaPet,Dog/Cat,0.95
+PET-6005,Cat Litter Clumping 40lb,Unscented low dust quick clumping,24.99,420,Litter,USA,FreshPaws,Cat,18.1
+PET-6006,Retractable Dog Leash 16ft,One-button brake and lock reflective,19.99,560,Accessories,China,WalkMate,Dog,0.28
+PET-6007,Cat Scratching Post Tower,Multi-level sisal rope with condo,89.99,95,Furniture,China,ScratchHaven,Cat,12.5
+PET-6008,Dog Dental Chews 30ct,Grain-free fresh breath tartar control,22.99,380,Treats,USA,DentaPet,Dog,0.65
+PET-6009,Flea and Tick Collar Dog,8-month protection waterproof,29.99,445,Health,Germany,PetShield,Dog,0.05
+PET-6010,Cat Wet Food Variety 24pk,Grain-free pate assorted flavors,32.99,320,Food,Thailand,NaturaPet,Cat,2.1
+PET-6011,Dog Training Treats 1lb,Soft and chewy chicken flavor,12.99,720,Treats,USA,TrainRight,Dog,0.45
+PET-6012,Pet Carrier Airline Approved,Soft-sided expandable up to 15lb,49.99,165,Travel,China,TravelPet,Dog/Cat,1.8
+PET-6013,Automatic Pet Feeder WiFi,5L capacity app-controlled portions,69.99,125,Feeding,China,SmartPet,Dog/Cat,2.4
+PET-6014,Dog Grooming Kit 12pc,Clippers scissors combs nail trimmer,39.99,235,Grooming,China,GroomPro,Dog,1.2
+PET-6015,Catnip Toys Organic 6pk,Refillable plush mice with catnip,11.99,580,Toys,USA,PlayPaws,Cat,0.18
+

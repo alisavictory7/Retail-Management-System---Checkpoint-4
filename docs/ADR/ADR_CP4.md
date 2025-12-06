@@ -6,7 +6,7 @@ The following Architectural Decision Records (ADRs) outline the tactics and patt
 
 ### Implement Database Indexing for Order History Filtering & Search 
 
-* **Status:** Proposed 
+* **Status:** Accepted 
 * **Context (problem & background):** The Order History feature requires filtering by status, date range, and keyword search across large historical tables (Sale, ReturnRequest, etc.). Given the system's focus on high traffic volumes during peak load, searching large historical datasets using unindexed fields risks performing full table scans, leading to unpredictable latency and inefficient resource usage.
 * **Decision:** Implement Database Indexing and Query Optimization (Performance Tactic: Increase efficiency of resource usage). Indexes will be created on frequently filtered and sorted columns, such as Sale.status, Sale._sale_date, ReturnRequest.status, and foreign keys used for joins.
 * **Consequences (pros/cons, trade-offs):**
@@ -16,7 +16,7 @@ The following Architectural Decision Records (ADRs) outline the tactics and patt
 
 ### Implement Data Caching for Order History Read Efficiency
 
-* **Status:** Proposed
+* **Status:** Accepted
 * **Context (problem & background):** Historical data, once recorded, rarely changes. Repeated requests for recent order history (e.g., the last 5 completed sales shown on the index page or frequently filtered views) unnecessarily load the central PostgreSQL database. This contention for shared data negatively impacts the performance of other critical processes, such as concurrent stock updates (Performance goal P.2).
 * **Decision:** Implement Data Caching (Performance/Availability Tactic: Maintain multiple copies of data). Results from frequently executed, time-intensive historical read queries (like filtered order lists) will be stored in a local or distributed cache (e.g., Redis).
 * **Consequences (pros/cons, trade-offs):**
@@ -26,7 +26,7 @@ The following Architectural Decision Records (ADRs) outline the tactics and patt
 
 ### Implement Layered Service Abstraction (Layers Pattern) for History Logic
 
-* **Status:** Proposed
+* **Status:** Accepted
 * **Context (problem & background):** The Order History and Returns History functionality spans multiple data entities and complex joining/filtering logic (Sale, Saleltem, ReturnRequest, Product). Integrating this complex logic directly into the application controller layer or mixing it with persistence details increases coupling, making future modifications (e.g., changing search providers or adding new return statuses) costly and risky.
 * **Decision:** Implement a Layered Service Abstraction using the Layers Pattern (Modifiability Pattern). A dedicated History Service layer will encapsulate all business logic related to retrieving, filtering, and preparing historical records, decoupling the API controllers from the underlying database schema.
 * **Consequences (pros/cons, trade-offs):**
@@ -38,7 +38,7 @@ The following Architectural Decision Records (ADRs) outline the tactics and patt
 
 ### Implement Publish-Subscribe Pattern for Low Stock Alerts
 
-* **Status:** Proposed
+* **Status:** Accepted
 * **Context (problem & background):** The low stock alert feature requires the Inventory logic to notify the Admin Dashboard whenever a product's stock drops below a predefined threshol. Direct invocation creates tight coupling between the Inventory Service (data producer) and the Dashboard (consumer), reducing modifiability. The system already relies on an intermediary message bus for decoupling reporting services (Integrability 1.2).
 * **Decision:** Implement the Publish-Subscribe Pattern using the existing Message Queue infrastructure. The Inventory logic will act as a Publisher, broadcasting a generic "InventoryUpdated" event whenever stock changes. A dedicated Alert Listener (Subscriber) consumes these events, checks the low-stock threshold, and updates the UI notification state.
 * **Consequences (pros/cons, trade-offs):**
@@ -50,7 +50,7 @@ The following Architectural Decision Records (ADRs) outline the tactics and patt
 
 ### Implement Publish-Subscribe Pattern for RMA Status Notifications 
 
-* **Status:** Proposed 
+* **Status:** Accepted 
 * **Context (problem & background):** The Returns & Refunds workflow includes multiple status changes (e.g., AUTHORIZED, REFUNDED) which must trigger immediate notifications for the end user. Directly updating the UI notification panel from the Returns Service creates coupling, limiting the ability to add external notification channels (like email/SMS) later.
 * **Decision:** Implement the Publish-Subscribe Pattern for status changes. The ReturnsService (Publisher) broadcasts events like "RMAStatusChanged" via the Message Queue. A lightweight UI service (Subscriber) consumes these events to refresh the notification panel, while external services could subscribe later for additional notification types.
 * **Consequences (pros/cons, trade-offs):**

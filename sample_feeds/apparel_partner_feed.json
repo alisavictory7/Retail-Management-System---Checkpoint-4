@@ -1,0 +1,74 @@
+{
+  "partner_id": "APP-VAR-002",
+  "feed_version": "2.0",
+  "generated_at": "2025-01-15T08:00:00Z",
+  "products": [
+    {
+      "id": "APP-1001",
+      "name": "Classic Cotton T-Shirt",
+      "description": "Soft premium cotton crew neck everyday essential",
+      "price": 24.99,
+      "stock": 10,
+      "category": "Tops",
+      "country_of_origin": "Bangladesh",
+      "brand": "UrbanWear",
+      "size_range": "XS-XXL",
+      "material": "100% Cotton"
+    },
+    {
+      "id": "APP-1002",
+      "name": "Slim Fit Chino Pants",
+      "description": "Stretch fabric with modern slim cut",
+      "price": 54.99,
+      "stock": 420,
+      "category": "Bottoms",
+      "country_of_origin": "Vietnam",
+      "brand": "ModernFit",
+      "size_range": "28-40",
+      "material": "98% Cotton 2% Elastane"
+    },
+    {
+      "id": "APP-1003",
+      "name": "Hooded Zip-Up Sweatshirt",
+      "description": "Fleece-lined hoodie with kangaroo pocket",
+      "price": 49.99,
+      "stock": 380,
+      "category": "Outerwear",
+      "country_of_origin": "China",
+      "brand": "ComfortZone",
+      "size_range": "S-XL",
+      "material": "80% Cotton 20% Polyester"
+    },
+    {
+      "id": "APP-1004",
+      "name": "Athletic Performance Shorts",
+      "description": "Moisture-wicking fabric with inner brief",
+      "price": 32.99,
+      "stock": 560,
+      "category": "Activewear",
+      "country_of_origin": "Thailand",
+      "brand": "SportFlex",
+      "size_range": "S-XXL",
+      "material": "100% Polyester"
+    },
+    {
+      "id": "APP-1005",
+      "name": "Button-Down Oxford Shirt",
+      "description": "Wrinkle-resistant business casual essential",
+      "price": 44.99,
+      "stock": 290,
+      "category": "Tops",
+      "country_of_origin": "India",
+      "brand": "ClassicStyle",
+      "size_range": "S-XXL",
+      "material": "100% Cotton"
+    }
+  ],
+  "metadata": {
+    "total_products": 5,
+    "currency": "USD",
+    "update_frequency": "weekly",
+    "seasonal_collection": "Spring 2025"
+  }
+}
+

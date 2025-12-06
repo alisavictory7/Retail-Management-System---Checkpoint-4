@@ -9,12 +9,12 @@ from __future__ import annotations
 
 import logging
 from datetime import datetime, timezone
-from typing import Dict, List, Optional, Any
+from typing import Dict, List, Optional, Any, Set
 
 from sqlalchemy.orm import Session
 
 from src.config import Config
-from src.models import Product
+from src.models import Product, User
 from src.observability import increment_counter, record_event
 
 
@@ -26,7 +26,11 @@ class LowStockAlertService:
     - Subscribes to inventory update events
     - Maintains list of products below threshold
     - Provides alerts to admin dashboard
+    - Sends notifications to admin users via notification bell
     """
+    
+    # Track which products have been notified to avoid duplicates
+    _notified_products: Set[int] = set()
 
     def __init__(
         self,
@@ -36,6 +40,86 @@ class LowStockAlertService:
         self.db = db_session
         self.threshold = threshold or Config.LOW_STOCK_THRESHOLD
         self.logger = logging.getLogger(__name__)
+    
+    def _get_admin_user_ids(self) -> List[int]:
+        """Get all admin and super_admin user IDs for notifications."""
+        admins = self.db.query(User).filter(
+            User.role.in_(['admin', 'super_admin'])
+        ).all()
+        return [admin.userID for admin in admins]
+    
+    def notify_admins_of_low_stock(self, force_refresh: bool = False) -> int:
+        """
+        Check all products and notify admins of any low stock items.
+        
+        Args:
+            force_refresh: If True, re-notify even for already notified products
+            
+        Returns:
+            Number of new notifications sent
+        """
+        from src.services.notification_service import publish_low_stock_alert
+        
+        if force_refresh:
+            LowStockAlertService._notified_products.clear()
+        
+        alerts = self.get_low_stock_products()
+        admin_ids = self._get_admin_user_ids()
+        
+        if not admin_ids:
+            return 0
+        
+        notifications_sent = 0
+        for alert in alerts:
+            product_id = alert["product_id"]
+            # Only notify if we haven't already notified about this product
+            if product_id not in LowStockAlertService._notified_products:
+                publish_low_stock_alert(
+                    product_id=product_id,
+                    product_name=alert["product_name"],
+                    current_stock=alert["current_stock"],
+                    threshold=self.threshold,
+                    admin_user_ids=admin_ids,
+                )
+                LowStockAlertService._notified_products.add(product_id)
+                notifications_sent += 1
+        
+        return notifications_sent
+    
+    def notify_single_product(self, product_id: int) -> bool:
+        """
+        Check a single product and notify admins if it's below threshold.
+        
+        Args:
+            product_id: The product to check
+            
+        Returns:
+            True if notification was sent, False otherwise
+        """
+        from src.services.notification_service import publish_low_stock_alert
+        
+        if product_id in LowStockAlertService._notified_products:
+            return False
+        
+        alert = self.check_and_alert(product_id)
+        if alert:
+            admin_ids = self._get_admin_user_ids()
+            if admin_ids:
+                publish_low_stock_alert(
+                    product_id=alert["product_id"],
+                    product_name=alert["product_name"],
+                    current_stock=alert["current_stock"],
+                    threshold=self.threshold,
+                    admin_user_ids=admin_ids,
+                )
+                LowStockAlertService._notified_products.add(product_id)
+                return True
+        return False
+    
+    @classmethod
+    def clear_notified_product(cls, product_id: int) -> None:
+        """Remove a product from the notified set (e.g., when restocked)."""
+        cls._notified_products.discard(product_id)
 
     def get_low_stock_products(self) -> List[Dict[str, Any]]:
         """

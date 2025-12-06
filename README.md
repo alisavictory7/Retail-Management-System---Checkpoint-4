@@ -31,6 +31,7 @@ Checkpoint 4 builds on the deployable, observable, and reliable foundation from 
 | **2.1 Order History Filtering** | Filter orders by status, date range, and keyword search | Layered Service Abstraction | `/order-history`, `HistoryService` |
 | **2.2 Low Stock Alerts** | Real-time alerts when inventory falls below threshold | Publish-Subscribe | `/admin/dashboard`, `LowStockAlertService` |
 | **2.3 RMA Notifications** | In-app notifications for return status changes | Publish-Subscribe | `/api/notifications`, `NotificationService` |
+| **Quality Scenario Monitoring** | Interactive live testing for A.1 & P.1 scenarios | Observability | `/admin/quality-monitoring` |
 | **Unified Admin Dashboard** | Portal-based dashboard with quick access cards | Modular UI | `/admin/dashboard` |
 | **Manage Store** | Combined products, stock alerts, and flash sales | Tabbed Interface | `/admin/manage-store` |
 | **Flash Sales** | Time-limited promotions with discount highlighting | Service Layer | `/admin/flash-sales` |
@@ -67,7 +68,7 @@ This Retail Management System is a full-stack web application designed to handle
 - **Returns & Refunds**: Rich RMA workflow (customer + admin) with multi-item validation and up to 20 uploaded evidence photos per request
 - **RMA Notifications (CP4)**: In-app notifications when return status changes (Pub-Sub pattern)
 - **Flash Sales**: High-performance flash sale system with throttling and queuing
-- **Partner Integration**: External partner catalog ingestion with authentication and validation
+- **Partner (VAR) Catalog Ingest (CP2)**: Full implementation of partner catalog integration with CSV/JSON feeds, validation, and scheduled sync
 - **Quality Tactics**: 14+ enterprise-grade quality tactics implemented and tested
 
 ### Technical Architecture
@@ -79,6 +80,114 @@ This Retail Management System is a full-stack web application designed to handle
 - **Quality Patterns**: Circuit breakers, graceful degradation, retry mechanisms, feature toggles
 - **Performance**: Throttling, queuing, concurrency control, and monitoring
 - **Integration**: Adapter patterns, publish-subscribe, message brokers
+
+## 🔗 Partner (VAR) Catalog Ingest (CP2)
+
+The Partner Catalog Ingest feature enables seamless integration with external partner/VAR (Value-Added Reseller) systems, fulfilling the Checkpoint 2 requirements:
+
+### Features Implemented
+
+| Requirement | Implementation | ADRs |
+|-------------|----------------|------|
+| **Ingest partner product feed (CSV/JSON)** | `PartnerCatalogService.ingest_csv_file()` / `ingest_json_file()` via Adapter pattern | ADR 8, ADR 9 (M.1) |
+| **Validate, transform, and upsert items** | Input validation (SQL injection, XSS), data transformation, upsert logic | ADR 7 (S.2) |
+| **Schedule periodic ingestion** | Background scheduler thread with configurable sync frequency per partner | - |
+
+### How to Use
+
+1. **Navigate to Manage Store** (`/admin/manage-store`) and select the **Partner Catalog** tab
+2. **Add a Partner**: Click "Add Partner" and provide name, optional API endpoint, and sync frequency
+3. **Upload Catalog File**: Drag & drop or click to upload CSV/JSON file
+4. **Manual Sync**: Click "Sync Now" to trigger API-based sync (requires API endpoint)
+5. **View Statistics**: See total partners, products synced, and scheduler status
+
+### CSV Format Example
+```csv
+id,name,description,price,stock,country_of_origin
+SKU001,Widget A,High-quality widget,29.99,100,USA
+SKU002,Gadget B,Premium gadget,49.99,50,China
+```
+
+### JSON Format Example
+```json
+{
+  "products": [
+    {"id": "SKU001", "name": "Widget A", "price": 29.99, "stock": 100},
+    {"id": "SKU002", "name": "Gadget B", "price": 49.99, "stock": 50}
+  ]
+}
+```
+
+### API Endpoint
+Partners can push catalog updates directly via API:
+
+```bash
+curl -X POST http://localhost:5000/api/partner/ingest \
+  -H "X-API-Key: pk_1_your_api_key" \
+  -H "Content-Type: application/json" \
+  -d '{"products": [{"id": "SKU001", "name": "Widget", "price": 19.99, "stock": 100}]}'
+```
+
+### Quality Scenarios Addressed
+
+| Scenario | Tactic | Response Measure |
+|----------|--------|------------------|
+| **S.1**: Unauthorized API access | Authenticate Actors (ADR 6) | 100% unauthorized attempts denied |
+| **S.2**: SQL injection in product data | Validate Input (ADR 7) | Zero malicious payloads reach DB |
+| **M.1**: New partner format (XML) | Adapter Pattern (ADR 9) | < 20 person-hours to add new format |
+| **I.2**: New reporting consumer | Publish-Subscribe (ADR 16) | Zero code changes in ingest module |
+
+## 📊 Interactive Quality Scenario Monitoring (CP4)
+
+The Quality Scenario Monitoring feature allows super admins and admins to interactively test and verify the A.1 (Availability) and P.1 (Performance) quality scenarios in real-time.
+
+### Features
+
+| Control | Description | Target Scenario |
+|---------|-------------|-----------------|
+| **Failure Rate Slider** | Adjust simulated payment failure rate (0-100%) | A.1 Availability |
+| **Circuit Breaker Threshold** | Configure failure count before circuit opens (1-20) | A.1 Availability |
+| **Recovery Timeout** | Set circuit breaker recovery time (10-300s) | A.1 Availability |
+| **Simulated Load Slider** | Set request rate for load testing (10-2000 RPS) | P.1 Performance |
+| **Throttle Limit** | Configure max allowed RPS (10-1000) | P.1 Performance |
+| **Processing Time** | Simulate request processing delay (10-1000ms) | P.1 Performance |
+
+### How to Use
+
+1. **Navigate** to `/admin/quality-monitoring` or click "Live Test" in the Quality Scenarios section of the dashboard
+2. **Configure Parameters** using sliders to set test conditions
+3. **Enable/Disable** scenarios using the toggle switches
+4. **Run Tests** by clicking the "Run Test" button for each scenario
+5. **View Results** in real-time in the test results log panel
+6. **Reset State** using the Reset buttons to clear circuit breaker or throttling state
+
+### Quality Scenario Targets
+
+| Scenario | Metric | Target |
+|----------|--------|--------|
+| **A.1 Availability** | Success Rate | ≥99% |
+| **A.1 Availability** | MTTR | <5 minutes |
+| **P.1 Performance** | P95 Latency | ≤500ms |
+
+### API Endpoints
+
+```bash
+# Run Availability Test
+curl -X POST http://localhost:5000/admin/quality-monitoring/test/availability \
+  -H "Content-Type: application/json" \
+  -d '{"failure_rate": 10, "threshold": 5, "timeout": 60}'
+
+# Run Performance Test
+curl -X POST http://localhost:5000/admin/quality-monitoring/test/performance \
+  -H "Content-Type: application/json" \
+  -d '{"simulated_load": 500, "throttle_limit": 100, "processing_time": 50}'
+
+# Reset Circuit Breaker
+curl -X POST http://localhost:5000/admin/quality-monitoring/reset/availability
+
+# Reset Throttling State
+curl -X POST http://localhost:5000/admin/quality-monitoring/reset/performance
+```
 
 ## 🔄 Returns & Refunds Workflow (CP3)
 
@@ -330,6 +439,8 @@ Prefer a reproducible local stack? Run everything with Docker:
 | `GET /api/notifications` | User's notification list with unread count (CP4) | Authenticated |
 | `GET /api/admin/low-stock` | Low stock alert summary JSON (CP4) | Admin |
 | `GET /order-history` | Order history with filtering (CP4) | Authenticated |
+| `POST /api/partner/ingest` | Partner catalog ingestion via API (CP2) | Partner API Key |
+| `POST /admin/partner-catalog` | Admin partner management actions (CP2) | Admin |
 
 ### How Logs & Metrics Support Debugging
 
@@ -531,8 +642,9 @@ The project includes comprehensive documentation:
 - **`POSTGRESQL_CONSISTENCY_UPDATE.md`** - Database consistency and PostgreSQL usage documentation
 
 ### Technical Documentation
-- **`docs/ADR/`** - Architectural Decision Records for all quality tactics
-- **`docs/UML/`** - UML diagrams including class diagrams, sequence diagrams, and deployment diagrams
+- **`docs/ADR/`** - Architectural Decision Records for all quality tactics, including CP4 feature decisions
+- **`docs/UML/`** - UML diagrams including class diagrams, sequence diagrams, and deployment diagrams (updated for CP4)
+- **`docs/VIDEO_SCRIPT.md`** - Comprehensive 15-minute demo video script covering all CP4 features
 - **`tests/README.md`** - Comprehensive test suite documentation
 
 ### Quality Scenario Validation
@@ -566,7 +678,7 @@ Retail-Management-System---Checkpoint-4/
 │   │   ├── inventory_service.py     # Stock management
 │   │   ├── low_stock_alert_service.py  # CP4: Low stock alerts
 │   │   ├── notification_service.py  # CP4: RMA notifications
-│   │   ├── partner_catalog_service.py
+│   │   ├── partner_catalog_service.py  # CP2: Partner VAR Catalog Ingest
 │   │   ├── payment_service.py
 │   │   ├── refund_service.py
 │   │   └── returns_service.py
@@ -599,7 +711,7 @@ Retail-Management-System---Checkpoint-4/
 ├── templates/                       # HTML templates
 │   ├── partials/navbar.html         # Unified navigation
 │   ├── admin_dashboard.html         # Portal-based dashboard (CP4)
-│   ├── manage_store.html            # Products + Stock + Flash Sales (CP4)
+│   ├── manage_store.html            # Products + Stock + Flash Sales + Partner Catalog (CP2/CP4)
 │   ├── order_history.html           # Order history with filters (CP4)
 │   ├── admin_users.html             # User administration
 │   ├── admin_returns.html           # Returns management

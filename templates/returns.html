@@ -42,15 +42,25 @@
                     </thead>
                     <tbody class="divide-y">
                         {% for req in return_requests %}
-                        <tr>
+                        <tr id="return-{{ req.returnRequestID }}" class="return-row transition-all duration-500">
                             <td class="px-3 py-2 font-semibold">{{ req.rma_number or ('RMA-' ~ req.returnRequestID) }}</td>
                             <td class="px-3 py-2">#{{ req.saleID }}</td>
                             <td class="px-3 py-2">
-                                <span class="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium bg-blue-100 text-blue-800">
-                                    {{ req.status.value if req.status else req.status }}
+                                <span class="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium
+                                    {% if req.status.value == 'APPROVED' or req.status.value == 'REFUNDED' %}
+                                        bg-green-100 text-green-800
+                                    {% elif req.status.value == 'REJECTED' or req.status.value == 'CANCELLED' %}
+                                        bg-red-100 text-red-800
+                                    {% elif req.status.value == 'AUTHORIZED' or req.status.value == 'IN_TRANSIT' or req.status.value == 'RECEIVED' %}
+                                        bg-amber-100 text-amber-800
+                                    {% else %}
+                                        bg-blue-100 text-blue-800
+                                    {% endif %}
+                                ">
+                                    {{ req.status.value.replace('_', ' ').title() if req.status else req.status }}
                                 </span>
                             </td>
-                            <td class="px-3 py-2">{{ req.reason.value if req.reason else req.reason }}</td>
+                            <td class="px-3 py-2">{{ (req.reason.value.replace('_', ' ').title()) if req.reason else '' }}</td>
                             <td class="px-3 py-2">
                                 <ul class="list-disc list-inside text-xs">
                                     {% for item in req.return_items %}
@@ -162,6 +172,40 @@
             {% endif %}
         </section>
     </div>
+
+    <!-- JavaScript for highlighting specific returns from notifications -->
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Check for highlight parameter
+            const urlParams = new URLSearchParams(window.location.search);
+            const highlightId = urlParams.get('highlight');
+            
+            if (highlightId) {
+                const targetRow = document.getElementById('return-' + highlightId);
+                if (targetRow) {
+                    // Add highlight animation
+                    targetRow.classList.add('bg-blue-50', 'ring-2', 'ring-blue-400', 'ring-inset');
+                    
+                    // Scroll to the row
+                    setTimeout(() => {
+                        targetRow.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    }, 100);
+                    
+                    // Remove highlight after 5 seconds
+                    setTimeout(() => {
+                        targetRow.classList.remove('ring-2', 'ring-blue-400', 'ring-inset');
+                        targetRow.classList.add('bg-blue-50/50');
+                    }, 5000);
+                    
+                    // Fully remove highlight on any click
+                    document.addEventListener('click', function removeHighlight() {
+                        targetRow.classList.remove('bg-blue-50', 'bg-blue-50/50', 'ring-2', 'ring-blue-400', 'ring-inset');
+                        document.removeEventListener('click', removeHighlight);
+                    }, { once: true });
+                }
+            }
+        });
+    </script>
 </body>
 </html>
 

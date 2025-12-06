@@ -1,0 +1,17 @@
+id,name,description,price,stock,category,country_of_origin,brand,weight_kg
+ELEC-001,Wireless Bluetooth Earbuds Pro,Premium noise-canceling earbuds with 30hr battery life,79.99,250,Audio,China,SoundWave,0.05
+ELEC-002,USB-C Fast Charging Cable 2m,Braided nylon 100W PD charging cable,14.99,1500,Accessories,Taiwan,TechLink,0.08
+ELEC-003,Portable Power Bank 20000mAh,Dual USB-A and USB-C ports with LED display,34.99,420,Power,China,PowerMax,0.35
+ELEC-004,Mechanical Gaming Keyboard RGB,Cherry MX switches with customizable backlighting,129.99,85,Peripherals,Germany,KeyMaster,1.2
+ELEC-005,4K Webcam with Microphone,Ultra HD streaming camera with auto-focus,89.99,150,Video,Japan,ClearView,0.18
+ELEC-006,Wireless Mouse Ergonomic,Silent click with adjustable DPI up to 4000,29.99,680,Peripherals,China,ErgoTech,0.12
+ELEC-007,Smart Watch Fitness Tracker,Heart rate SpO2 sleep tracking waterproof IP68,149.99,320,Wearables,China,FitPulse,0.045
+ELEC-008,Laptop Stand Aluminum Adjustable,Heat dissipation design fits 10-17 inch laptops,44.99,275,Accessories,China,DeskPro,0.95
+ELEC-009,USB Hub 7-Port Powered,USB 3.0 with individual power switches,39.99,190,Accessories,Taiwan,HubMax,0.22
+ELEC-010,Noise Canceling Headphones Over-Ear,40hr battery with premium leather cushions,199.99,95,Audio,Japan,SoundWave,0.28
+ELEC-011,Wireless Charging Pad 15W,Qi-certified fast charge with LED indicator,24.99,820,Power,China,PowerMax,0.15
+ELEC-012,HDMI Cable 4K 3m,Gold-plated connectors 18Gbps bandwidth,12.99,2100,Cables,China,TechLink,0.12
+ELEC-013,Bluetooth Speaker Waterproof,IPX7 rated 24hr playtime with bass boost,59.99,340,Audio,China,SoundWave,0.65
+ELEC-014,Gaming Mouse Pad XL,RGB edge lighting anti-slip rubber base,27.99,450,Peripherals,China,KeyMaster,0.42
+ELEC-015,Portable SSD 1TB,USB 3.2 Gen2 1050MB/s read speed,89.99,180,Storage,South Korea,DataFast,0.05
+

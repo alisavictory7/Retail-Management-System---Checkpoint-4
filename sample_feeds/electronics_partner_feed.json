@@ -1,0 +1,68 @@
+{
+  "partner_id": "ELEC-VAR-001",
+  "feed_version": "2.0",
+  "generated_at": "2025-01-15T10:30:00Z",
+  "products": [
+    {
+      "id": "ELEC-001",
+      "name": "Wireless Bluetooth Earbuds Pro",
+      "description": "Premium noise-canceling earbuds with 30hr battery life",
+      "price": 79.99,
+      "stock": 250,
+      "category": "Audio",
+      "country_of_origin": "China",
+      "brand": "SoundWave",
+      "weight_kg": 0.05
+    },
+    {
+      "id": "ELEC-002",
+      "name": "USB-C Fast Charging Cable 2m",
+      "description": "Braided nylon 100W PD charging cable",
+      "price": 14.99,
+      "stock": 1500,
+      "category": "Accessories",
+      "country_of_origin": "Taiwan",
+      "brand": "TechLink",
+      "weight_kg": 0.08
+    },
+    {
+      "id": "ELEC-003",
+      "name": "Portable Power Bank 20000mAh",
+      "description": "Dual USB-A and USB-C ports with LED display",
+      "price": 34.99,
+      "stock": 420,
+      "category": "Power",
+      "country_of_origin": "China",
+      "brand": "PowerMax",
+      "weight_kg": 0.35
+    },
+    {
+      "id": "ELEC-004",
+      "name": "Mechanical Gaming Keyboard RGB",
+      "description": "Cherry MX switches with customizable backlighting",
+      "price": 129.99,
+      "stock": 85,
+      "category": "Peripherals",
+      "country_of_origin": "Germany",
+      "brand": "KeyMaster",
+      "weight_kg": 1.2
+    },
+    {
+      "id": "ELEC-005",
+      "name": "4K Webcam with Microphone",
+      "description": "Ultra HD streaming camera with auto-focus",
+      "price": 89.99,
+      "stock": 150,
+      "category": "Video",
+      "country_of_origin": "Japan",
+      "brand": "ClearView",
+      "weight_kg": 0.18
+    }
+  ],
+  "metadata": {
+    "total_products": 5,
+    "currency": "USD",
+    "update_frequency": "daily"
+  }
+}
+

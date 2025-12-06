@@ -89,14 +89,33 @@ def compute_refund_metrics(
     window: QuarterWindow,
     now: Optional[datetime] = None,
 ) -> Dict[str, float]:
+    """
+    Compute refund metrics for the given time window.
+    Uses processed_at for completed refunds (when they were actually processed),
+    falls back to created_at for refunds without processed_at.
+    """
     rows = (
-        session.query(Refund.created_at)
-        .filter(Refund.created_at >= window.start)
-        .filter(Refund.created_at < window.end)
+        session.query(Refund.processed_at, Refund.created_at)
         .filter(Refund.status == RefundStatus.COMPLETED)
         .all()
     )
-    timestamps = [_to_local_timezone(row[0]) for row in rows if row[0] is not None]
+    # Use processed_at if available (when refund was completed), otherwise created_at
+    timestamps = []
+    for row in rows:
+        refund_date = row[0] if row[0] is not None else row[1]
+        if refund_date is not None:
+            # Ensure refund_date is timezone-aware (UTC)
+            if refund_date.tzinfo is None:
+                refund_date = refund_date.replace(tzinfo=timezone.utc)
+            else:
+                refund_date = refund_date.astimezone(timezone.utc)
+            
+            # Check if refund is within the window (window times are in UTC)
+            if window.start <= refund_date < window.end:
+                # Convert to local timezone for series building
+                local_date = _to_local_timezone(refund_date)
+                timestamps.append(local_date)
+    
     return _build_series_metrics(timestamps, window, now)
 
 

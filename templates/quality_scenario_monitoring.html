@@ -1,0 +1,730 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Quality Scenario Monitoring - Retail Management System</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Space+Grotesk:wght@300;400;500;600;700&display=swap');
+        body { font-family: 'Space Grotesk', sans-serif; }
+        .mono { font-family: 'JetBrains Mono', monospace; }
+        
+        /* Custom slider styling */
+        .slider-track {
+            appearance: none;
+            width: 100%;
+            height: 8px;
+            border-radius: 4px;
+            outline: none;
+            transition: all 0.3s ease;
+        }
+        .slider-track::-webkit-slider-thumb {
+            appearance: none;
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+        }
+        .slider-track::-webkit-slider-thumb:hover {
+            transform: scale(1.1);
+        }
+        
+        /* Availability slider - blue */
+        .slider-availability { background: linear-gradient(to right, #ef4444 0%, #f59e0b 50%, #22c55e 100%); }
+        .slider-availability::-webkit-slider-thumb { background: linear-gradient(135deg, #3b82f6, #1d4ed8); }
+        
+        /* Performance slider - purple */
+        .slider-performance { background: linear-gradient(to right, #22c55e 0%, #f59e0b 70%, #ef4444 100%); }
+        .slider-performance::-webkit-slider-thumb { background: linear-gradient(135deg, #8b5cf6, #6d28d9); }
+        
+        /* Toggle switch styling */
+        .toggle-switch {
+            position: relative;
+            width: 60px;
+            height: 30px;
+            cursor: pointer;
+        }
+        .toggle-switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+        .toggle-slider {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: linear-gradient(135deg, #dc2626, #b91c1c);
+            border-radius: 30px;
+            transition: 0.4s;
+        }
+        .toggle-slider:before {
+            position: absolute;
+            content: "";
+            height: 22px;
+            width: 22px;
+            left: 4px;
+            bottom: 4px;
+            background: white;
+            border-radius: 50%;
+            transition: 0.4s;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
+        input:checked + .toggle-slider {
+            background: linear-gradient(135deg, #22c55e, #16a34a);
+        }
+        input:checked + .toggle-slider:before {
+            transform: translateX(30px);
+        }
+        
+        /* Pulse animation for live testing */
+        @keyframes pulse-ring {
+            0% { transform: scale(0.8); opacity: 1; }
+            100% { transform: scale(2); opacity: 0; }
+        }
+        .pulse-indicator {
+            position: relative;
+        }
+        .pulse-indicator::before {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 100%;
+            height: 100%;
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+            animation: pulse-ring 1.5s ease-out infinite;
+        }
+        .pulse-indicator.active::before {
+            background: rgba(34, 197, 94, 0.4);
+        }
+        .pulse-indicator.testing::before {
+            background: rgba(251, 191, 36, 0.4);
+        }
+        .pulse-indicator.error::before {
+            background: rgba(239, 68, 68, 0.4);
+        }
+        
+        /* Card hover effect */
+        .scenario-card {
+            transition: all 0.3s ease;
+        }
+        .scenario-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 20px 40px -10px rgba(0,0,0,0.1);
+        }
+        
+        /* Results log */
+        .log-entry {
+            animation: slideIn 0.3s ease;
+        }
+        @keyframes slideIn {
+            from { opacity: 0; transform: translateX(-20px); }
+            to { opacity: 1; transform: translateX(0); }
+        }
+    </style>
+</head>
+<body class="bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 text-gray-100 min-h-screen">
+    {% include 'partials/navbar.html' %}
+
+    <main class="container mx-auto px-4 py-8">
+        <!-- Header -->
+        <div class="mb-8">
+            <div class="flex items-center gap-3 mb-2">
+                <div class="w-12 h-12 rounded-xl bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center">
+                    <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
+                    </svg>
+                </div>
+                <div>
+                    <h1 class="text-3xl font-bold text-white">Quality Scenario Monitoring</h1>
+                    <p class="text-slate-400">Interactive testing for A.1 Availability & P.1 Performance tactics</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Main Grid -->
+        <div class="grid gap-6 lg:grid-cols-2 mb-8">
+            <!-- A.1 Availability Scenario Card -->
+            <div class="scenario-card bg-slate-800/50 backdrop-blur-sm rounded-2xl border border-slate-700 overflow-hidden">
+                <div class="p-6 border-b border-slate-700">
+                    <div class="flex items-center justify-between mb-4">
+                        <div class="flex items-center gap-3">
+                            <div class="w-10 h-10 rounded-lg bg-gradient-to-br from-blue-500 to-cyan-500 flex items-center justify-center pulse-indicator" id="a1-indicator">
+                                <span class="text-white font-bold">A.1</span>
+                            </div>
+                            <div>
+                                <h3 class="text-lg font-semibold text-white">Availability Scenario</h3>
+                                <p class="text-sm text-slate-400">Circuit Breaker + Graceful Degradation</p>
+                            </div>
+                        </div>
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="a1-enabled" checked onchange="toggleScenario('a1')">
+                            <span class="toggle-slider"></span>
+                        </label>
+                    </div>
+
+                    <!-- Current Status -->
+                    <div class="grid grid-cols-3 gap-4 mb-6">
+                        <div class="bg-slate-700/50 rounded-xl p-3 text-center">
+                            <p class="text-xs text-slate-400 uppercase mb-1">Success Rate</p>
+                            <p class="text-xl font-bold text-cyan-400 mono" id="a1-success-rate">{{ '%.1f'|format(scenario_metrics.A1.success_rate) if scenario_metrics.A1.success_rate else 'N/A' }}%</p>
+                        </div>
+                        <div class="bg-slate-700/50 rounded-xl p-3 text-center">
+                            <p class="text-xs text-slate-400 uppercase mb-1">MTTR</p>
+                            <p class="text-xl font-bold text-cyan-400 mono" id="a1-mttr">{{ scenario_metrics.A1.mttr_display }}</p>
+                        </div>
+                        <div class="bg-slate-700/50 rounded-xl p-3 text-center">
+                            <p class="text-xs text-slate-400 uppercase mb-1">Status</p>
+                            <p class="text-xl font-bold {{ 'text-green-400' if scenario_metrics.A1.fulfilled else 'text-amber-400' }}" id="a1-status">{{ 'Fulfilled' if scenario_metrics.A1.fulfilled else 'In Progress' }}</p>
+                        </div>
+                    </div>
+
+                    <!-- Interactive Controls -->
+                    <div class="space-y-4">
+                        <!-- Failure Rate Slider -->
+                        <div>
+                            <div class="flex justify-between items-center mb-2">
+                                <label class="text-sm text-slate-300">Simulated Failure Rate</label>
+                                <span class="text-sm font-medium text-cyan-400 mono" id="a1-failure-rate-value">0%</span>
+                            </div>
+                            <input type="range" min="0" max="100" value="0" 
+                                   class="slider-track slider-availability w-full"
+                                   id="a1-failure-rate" 
+                                   oninput="updateSliderValue('a1-failure-rate')">
+                            <div class="flex justify-between text-xs text-slate-500 mt-1">
+                                <span>0% (Healthy)</span>
+                                <span>100% (Total Failure)</span>
+                            </div>
+                        </div>
+
+                        <!-- Circuit Breaker Threshold -->
+                        <div>
+                            <div class="flex justify-between items-center mb-2">
+                                <label class="text-sm text-slate-300">Circuit Breaker Threshold</label>
+                                <span class="text-sm font-medium text-cyan-400 mono" id="a1-threshold-value">5 failures</span>
+                            </div>
+                            <input type="range" min="1" max="20" value="5" 
+                                   class="slider-track slider-availability w-full"
+                                   id="a1-threshold" 
+                                   oninput="updateThresholdValue('a1-threshold')">
+                            <div class="flex justify-between text-xs text-slate-500 mt-1">
+                                <span>1 (Sensitive)</span>
+                                <span>20 (Tolerant)</span>
+                            </div>
+                        </div>
+
+                        <!-- Recovery Timeout -->
+                        <div>
+                            <div class="flex justify-between items-center mb-2">
+                                <label class="text-sm text-slate-300">Recovery Timeout</label>
+                                <span class="text-sm font-medium text-cyan-400 mono" id="a1-timeout-value">60s</span>
+                            </div>
+                            <input type="range" min="10" max="300" value="60" 
+                                   class="slider-track slider-availability w-full"
+                                   id="a1-timeout" 
+                                   oninput="updateTimeoutValue('a1-timeout')">
+                            <div class="flex justify-between text-xs text-slate-500 mt-1">
+                                <span>10s (Fast)</span>
+                                <span>300s (Slow)</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Action Buttons -->
+                <div class="p-4 bg-slate-900/50 flex gap-3">
+                    <button onclick="runAvailabilityTest()" 
+                            class="flex-1 bg-gradient-to-r from-blue-500 to-cyan-500 text-white px-4 py-2.5 rounded-xl font-medium hover:opacity-90 transition flex items-center justify-center gap-2"
+                            id="a1-test-btn">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"></path>
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                        </svg>
+                        Run Test
+                    </button>
+                    <button onclick="resetAvailabilityCircuitBreaker()" 
+                            class="px-4 py-2.5 rounded-xl font-medium bg-slate-700 text-slate-300 hover:bg-slate-600 transition flex items-center gap-2">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+                        </svg>
+                        Reset
+                    </button>
+                </div>
+            </div>
+
+            <!-- P.1 Performance Scenario Card -->
+            <div class="scenario-card bg-slate-800/50 backdrop-blur-sm rounded-2xl border border-slate-700 overflow-hidden">
+                <div class="p-6 border-b border-slate-700">
+                    <div class="flex items-center justify-between mb-4">
+                        <div class="flex items-center gap-3">
+                            <div class="w-10 h-10 rounded-lg bg-gradient-to-br from-purple-500 to-violet-600 flex items-center justify-center pulse-indicator" id="p1-indicator">
+                                <span class="text-white font-bold">P.1</span>
+                            </div>
+                            <div>
+                                <h3 class="text-lg font-semibold text-white">Performance Scenario</h3>
+                                <p class="text-sm text-slate-400">Manage Event Arrival (Throttling)</p>
+                            </div>
+                        </div>
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="p1-enabled" checked onchange="toggleScenario('p1')">
+                            <span class="toggle-slider"></span>
+                        </label>
+                    </div>
+
+                    <!-- Current Status -->
+                    <div class="grid grid-cols-3 gap-4 mb-6">
+                        <div class="bg-slate-700/50 rounded-xl p-3 text-center">
+                            <p class="text-xs text-slate-400 uppercase mb-1">P95 Latency</p>
+                            <p class="text-xl font-bold text-purple-400 mono" id="p1-latency">{{ '%.0f'|format(scenario_metrics.P1.latency_p95) if scenario_metrics.P1.latency_p95 else 'N/A' }}ms</p>
+                        </div>
+                        <div class="bg-slate-700/50 rounded-xl p-3 text-center">
+                            <p class="text-xs text-slate-400 uppercase mb-1">Target</p>
+                            <p class="text-xl font-bold text-slate-300 mono">≤500ms</p>
+                        </div>
+                        <div class="bg-slate-700/50 rounded-xl p-3 text-center">
+                            <p class="text-xs text-slate-400 uppercase mb-1">Status</p>
+                            <p class="text-xl font-bold {{ 'text-green-400' if scenario_metrics.P1.fulfilled else 'text-amber-400' }}" id="p1-status">{{ 'Fulfilled' if scenario_metrics.P1.fulfilled else 'In Progress' }}</p>
+                        </div>
+                    </div>
+
+                    <!-- Interactive Controls -->
+                    <div class="space-y-4">
+                        <!-- Simulated Load -->
+                        <div>
+                            <div class="flex justify-between items-center mb-2">
+                                <label class="text-sm text-slate-300">Simulated Load (RPS)</label>
+                                <span class="text-sm font-medium text-purple-400 mono" id="p1-load-value">100 req/s</span>
+                            </div>
+                            <input type="range" min="10" max="2000" value="100" 
+                                   class="slider-track slider-performance w-full"
+                                   id="p1-load" 
+                                   oninput="updateLoadValue('p1-load')">
+                            <div class="flex justify-between text-xs text-slate-500 mt-1">
+                                <span>10 (Light)</span>
+                                <span>2000 (Extreme)</span>
+                            </div>
+                        </div>
+
+                        <!-- Throttle Limit -->
+                        <div>
+                            <div class="flex justify-between items-center mb-2">
+                                <label class="text-sm text-slate-300">Throttle Limit (Max RPS)</label>
+                                <span class="text-sm font-medium text-purple-400 mono" id="p1-throttle-value">100 req/s</span>
+                            </div>
+                            <input type="range" min="10" max="1000" value="100" 
+                                   class="slider-track slider-performance w-full"
+                                   id="p1-throttle" 
+                                   oninput="updateThrottleValue('p1-throttle')">
+                            <div class="flex justify-between text-xs text-slate-500 mt-1">
+                                <span>10 (Strict)</span>
+                                <span>1000 (Permissive)</span>
+                            </div>
+                        </div>
+
+                        <!-- Simulated Processing Time -->
+                        <div>
+                            <div class="flex justify-between items-center mb-2">
+                                <label class="text-sm text-slate-300">Simulated Processing Time</label>
+                                <span class="text-sm font-medium text-purple-400 mono" id="p1-processing-value">50ms</span>
+                            </div>
+                            <input type="range" min="10" max="1000" value="50" 
+                                   class="slider-track slider-performance w-full"
+                                   id="p1-processing" 
+                                   oninput="updateProcessingValue('p1-processing')">
+                            <div class="flex justify-between text-xs text-slate-500 mt-1">
+                                <span>10ms (Fast)</span>
+                                <span>1000ms (Slow)</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Action Buttons -->
+                <div class="p-4 bg-slate-900/50 flex gap-3">
+                    <button onclick="runPerformanceTest()" 
+                            class="flex-1 bg-gradient-to-r from-purple-500 to-violet-600 text-white px-4 py-2.5 rounded-xl font-medium hover:opacity-90 transition flex items-center justify-center gap-2"
+                            id="p1-test-btn">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"></path>
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                        </svg>
+                        Run Test
+                    </button>
+                    <button onclick="resetPerformanceMetrics()" 
+                            class="px-4 py-2.5 rounded-xl font-medium bg-slate-700 text-slate-300 hover:bg-slate-600 transition flex items-center gap-2">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+                        </svg>
+                        Reset
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Test Results Log -->
+        <div class="bg-slate-800/50 backdrop-blur-sm rounded-2xl border border-slate-700 overflow-hidden">
+            <div class="p-4 border-b border-slate-700 flex items-center justify-between">
+                <div class="flex items-center gap-3">
+                    <svg class="w-5 h-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"></path>
+                    </svg>
+                    <h3 class="text-lg font-semibold text-white">Test Results Log</h3>
+                </div>
+                <button onclick="clearLog()" class="text-sm text-slate-400 hover:text-white transition">Clear Log</button>
+            </div>
+            <div class="p-4 max-h-64 overflow-y-auto" id="test-log">
+                <div class="text-center text-slate-500 py-8" id="log-placeholder">
+                    <svg class="w-12 h-12 mx-auto mb-3 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
+                    </svg>
+                    <p>Run a test to see results here</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Quick Actions Bar -->
+        <div class="mt-6 flex flex-wrap gap-4 justify-center">
+            <button onclick="runAllTests()" 
+                    class="bg-gradient-to-r from-emerald-500 to-teal-500 text-white px-6 py-3 rounded-xl font-medium hover:opacity-90 transition flex items-center gap-2">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                </svg>
+                Run All Tests
+            </button>
+            <a href="{{ url_for('admin_metrics') }}" 
+               class="bg-slate-700 text-slate-300 px-6 py-3 rounded-xl font-medium hover:bg-slate-600 transition flex items-center gap-2">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path>
+                </svg>
+                Export Metrics
+            </a>
+            <a href="{{ url_for('admin_dashboard') }}" 
+               class="bg-slate-700 text-slate-300 px-6 py-3 rounded-xl font-medium hover:bg-slate-600 transition flex items-center gap-2">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 17l-5-5m0 0l5-5m-5 5h12"></path>
+                </svg>
+                Back to Dashboard
+            </a>
+        </div>
+    </main>
+
+    <script>
+        // Slider value update functions
+        function updateSliderValue(sliderId) {
+            const slider = document.getElementById(sliderId);
+            const valueSpan = document.getElementById(sliderId + '-value');
+            valueSpan.textContent = slider.value + '%';
+        }
+
+        function updateThresholdValue(sliderId) {
+            const slider = document.getElementById(sliderId);
+            const valueSpan = document.getElementById(sliderId + '-value');
+            valueSpan.textContent = slider.value + ' failures';
+        }
+
+        function updateTimeoutValue(sliderId) {
+            const slider = document.getElementById(sliderId);
+            const valueSpan = document.getElementById(sliderId + '-value');
+            valueSpan.textContent = slider.value + 's';
+        }
+
+        function updateLoadValue(sliderId) {
+            const slider = document.getElementById(sliderId);
+            const valueSpan = document.getElementById(sliderId + '-value');
+            valueSpan.textContent = slider.value + ' req/s';
+        }
+
+        function updateThrottleValue(sliderId) {
+            const slider = document.getElementById(sliderId);
+            const valueSpan = document.getElementById(sliderId + '-value');
+            valueSpan.textContent = slider.value + ' req/s';
+        }
+
+        function updateProcessingValue(sliderId) {
+            const slider = document.getElementById(sliderId);
+            const valueSpan = document.getElementById(sliderId + '-value');
+            valueSpan.textContent = slider.value + 'ms';
+        }
+
+        // Toggle scenario enabled/disabled
+        function toggleScenario(scenarioId) {
+            const checkbox = document.getElementById(scenarioId + '-enabled');
+            const indicator = document.getElementById(scenarioId + '-indicator');
+            
+            if (checkbox.checked) {
+                indicator.classList.add('active');
+                indicator.classList.remove('error');
+                addLogEntry(scenarioId.toUpperCase(), 'Scenario enabled', 'info');
+            } else {
+                indicator.classList.remove('active');
+                addLogEntry(scenarioId.toUpperCase(), 'Scenario disabled', 'warning');
+            }
+        }
+
+        // Add entry to test log
+        function addLogEntry(scenario, message, type = 'info') {
+            const log = document.getElementById('test-log');
+            const placeholder = document.getElementById('log-placeholder');
+            
+            if (placeholder) {
+                placeholder.remove();
+            }
+            
+            const timestamp = new Date().toLocaleTimeString();
+            const colorClass = {
+                'info': 'text-blue-400',
+                'success': 'text-green-400',
+                'warning': 'text-amber-400',
+                'error': 'text-red-400'
+            }[type] || 'text-slate-400';
+            
+            const bgClass = {
+                'info': 'bg-blue-500/10 border-blue-500/20',
+                'success': 'bg-green-500/10 border-green-500/20',
+                'warning': 'bg-amber-500/10 border-amber-500/20',
+                'error': 'bg-red-500/10 border-red-500/20'
+            }[type] || 'bg-slate-700/50 border-slate-600';
+            
+            const entry = document.createElement('div');
+            entry.className = `log-entry ${bgClass} border rounded-lg p-3 mb-2`;
+            entry.innerHTML = `
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center gap-2">
+                        <span class="font-mono text-xs text-slate-500">${timestamp}</span>
+                        <span class="font-semibold ${colorClass}">[${scenario}]</span>
+                    </div>
+                </div>
+                <p class="text-sm text-slate-300 mt-1">${message}</p>
+            `;
+            
+            log.insertBefore(entry, log.firstChild);
+            
+            // Keep only last 50 entries
+            while (log.children.length > 50) {
+                log.removeChild(log.lastChild);
+            }
+        }
+
+        // Clear log
+        function clearLog() {
+            const log = document.getElementById('test-log');
+            log.innerHTML = `
+                <div class="text-center text-slate-500 py-8" id="log-placeholder">
+                    <svg class="w-12 h-12 mx-auto mb-3 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
+                    </svg>
+                    <p>Run a test to see results here</p>
+                </div>
+            `;
+        }
+
+        // Run Availability Test
+        async function runAvailabilityTest() {
+            const btn = document.getElementById('a1-test-btn');
+            const indicator = document.getElementById('a1-indicator');
+            
+            if (!document.getElementById('a1-enabled').checked) {
+                addLogEntry('A.1', 'Scenario is disabled. Enable it first.', 'warning');
+                return;
+            }
+            
+            btn.disabled = true;
+            btn.innerHTML = '<svg class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> Testing...';
+            indicator.classList.add('testing');
+            indicator.classList.remove('active', 'error');
+            
+            const failureRate = document.getElementById('a1-failure-rate').value;
+            const threshold = document.getElementById('a1-threshold').value;
+            const timeout = document.getElementById('a1-timeout').value;
+            
+            addLogEntry('A.1', `Starting test with failure_rate=${failureRate}%, threshold=${threshold}, timeout=${timeout}s`, 'info');
+            
+            try {
+                const response = await fetch('/admin/quality-monitoring/test/availability', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        failure_rate: parseInt(failureRate),
+                        threshold: parseInt(threshold),
+                        timeout: parseInt(timeout)
+                    })
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    indicator.classList.add('active');
+                    indicator.classList.remove('testing', 'error');
+                    document.getElementById('a1-success-rate').textContent = result.success_rate.toFixed(1) + '%';
+                    document.getElementById('a1-mttr').textContent = result.mttr;
+                    
+                    // Update status with appropriate color
+                    const status = result.status || (result.fulfilled ? 'Fulfilled' : 'Failed');
+                    const statusEl = document.getElementById('a1-status');
+                    statusEl.textContent = status;
+                    
+                    if (status === 'Fulfilled') {
+                        statusEl.className = 'text-xl font-bold text-green-400';
+                    } else if (status === 'Failed') {
+                        statusEl.className = 'text-xl font-bold text-red-400';
+                    } else if (status === 'In Progress') {
+                        statusEl.className = 'text-xl font-bold text-amber-400';
+                    } else if (status === 'Blocked') {
+                        statusEl.className = 'text-xl font-bold text-orange-400';
+                    }
+                    
+                    addLogEntry('A.1', `Test completed: Success Rate=${result.success_rate.toFixed(1)}%, MTTR=${result.mttr}, Circuit Breaker Trips=${result.circuit_breaker_trips}`, result.fulfilled ? 'success' : 'warning');
+                } else {
+                    indicator.classList.add('error');
+                    indicator.classList.remove('testing', 'active');
+                    const statusEl = document.getElementById('a1-status');
+                    statusEl.textContent = result.status || 'Blocked';
+                    statusEl.className = 'text-xl font-bold text-orange-400';
+                    addLogEntry('A.1', `Test failed: ${result.error}`, 'error');
+                }
+            } catch (error) {
+                indicator.classList.add('error');
+                indicator.classList.remove('testing', 'active');
+                addLogEntry('A.1', `Network error: ${error.message}`, 'error');
+            }
+            
+            btn.disabled = false;
+            btn.innerHTML = '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg> Run Test';
+        }
+
+        // Run Performance Test
+        async function runPerformanceTest() {
+            const btn = document.getElementById('p1-test-btn');
+            const indicator = document.getElementById('p1-indicator');
+            
+            if (!document.getElementById('p1-enabled').checked) {
+                addLogEntry('P.1', 'Scenario is disabled. Enable it first.', 'warning');
+                return;
+            }
+            
+            btn.disabled = true;
+            btn.innerHTML = '<svg class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> Testing...';
+            indicator.classList.add('testing');
+            indicator.classList.remove('active', 'error');
+            
+            const load = document.getElementById('p1-load').value;
+            const throttle = document.getElementById('p1-throttle').value;
+            const processing = document.getElementById('p1-processing').value;
+            
+            addLogEntry('P.1', `Starting test with load=${load} RPS, throttle=${throttle} RPS, processing_time=${processing}ms`, 'info');
+            
+            try {
+                const response = await fetch('/admin/quality-monitoring/test/performance', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        simulated_load: parseInt(load),
+                        throttle_limit: parseInt(throttle),
+                        processing_time: parseInt(processing)
+                    })
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    indicator.classList.add('active');
+                    indicator.classList.remove('testing', 'error');
+                    document.getElementById('p1-latency').textContent = result.p95_latency.toFixed(0) + 'ms';
+                    
+                    // Update status with appropriate color
+                    const status = result.status || (result.fulfilled ? 'Fulfilled' : 'Failed');
+                    const statusEl = document.getElementById('p1-status');
+                    statusEl.textContent = status;
+                    
+                    if (status === 'Fulfilled') {
+                        statusEl.className = 'text-xl font-bold text-green-400';
+                    } else if (status === 'Failed') {
+                        statusEl.className = 'text-xl font-bold text-red-400';
+                    } else if (status === 'In Progress') {
+                        statusEl.className = 'text-xl font-bold text-amber-400';
+                    } else if (status === 'Blocked') {
+                        statusEl.className = 'text-xl font-bold text-orange-400';
+                    }
+                    
+                    addLogEntry('P.1', `Test completed: P95 Latency=${result.p95_latency.toFixed(0)}ms, Requests Processed=${result.requests_processed}, Throttled=${result.requests_throttled}`, result.fulfilled ? 'success' : 'warning');
+                } else {
+                    indicator.classList.add('error');
+                    indicator.classList.remove('testing', 'active');
+                    const statusEl = document.getElementById('p1-status');
+                    statusEl.textContent = result.status || 'Blocked';
+                    statusEl.className = 'text-xl font-bold text-orange-400';
+                    addLogEntry('P.1', `Test failed: ${result.error}`, 'error');
+                }
+            } catch (error) {
+                indicator.classList.add('error');
+                indicator.classList.remove('testing', 'active');
+                addLogEntry('P.1', `Network error: ${error.message}`, 'error');
+            }
+            
+            btn.disabled = false;
+            btn.innerHTML = '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg> Run Test';
+        }
+
+        // Reset Circuit Breaker
+        async function resetAvailabilityCircuitBreaker() {
+            try {
+                const response = await fetch('/admin/quality-monitoring/reset/availability', { method: 'POST' });
+                const result = await response.json();
+                
+                if (result.success) {
+                    document.getElementById('a1-failure-rate').value = 0;
+                    updateSliderValue('a1-failure-rate');
+                    addLogEntry('A.1', 'Circuit breaker reset successfully', 'success');
+                } else {
+                    addLogEntry('A.1', `Reset failed: ${result.error}`, 'error');
+                }
+            } catch (error) {
+                addLogEntry('A.1', `Reset error: ${error.message}`, 'error');
+            }
+        }
+
+        // Reset Performance Metrics
+        async function resetPerformanceMetrics() {
+            try {
+                const response = await fetch('/admin/quality-monitoring/reset/performance', { method: 'POST' });
+                const result = await response.json();
+                
+                if (result.success) {
+                    document.getElementById('p1-load').value = 100;
+                    document.getElementById('p1-throttle').value = 100;
+                    document.getElementById('p1-processing').value = 50;
+                    updateLoadValue('p1-load');
+                    updateThrottleValue('p1-throttle');
+                    updateProcessingValue('p1-processing');
+                    addLogEntry('P.1', 'Performance metrics reset successfully', 'success');
+                } else {
+                    addLogEntry('P.1', `Reset failed: ${result.error}`, 'error');
+                }
+            } catch (error) {
+                addLogEntry('P.1', `Reset error: ${error.message}`, 'error');
+            }
+        }
+
+        // Run all tests
+        async function runAllTests() {
+            addLogEntry('ALL', 'Running all quality scenario tests...', 'info');
+            await runAvailabilityTest();
+            await runPerformanceTest();
+            addLogEntry('ALL', 'All tests completed', 'success');
+        }
+
+        // Initialize on load
+        document.addEventListener('DOMContentLoaded', function() {
+            document.getElementById('a1-indicator').classList.add('active');
+            document.getElementById('p1-indicator').classList.add('active');
+        });
+    </script>
+</body>
+</html>
+

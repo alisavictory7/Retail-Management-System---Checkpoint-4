@@ -1,0 +1,151 @@
+@startuml Partner (VAR) Catalog Ingest Sequence Diagram
+
+!theme plain
+skinparam sequenceMessageAlign center
+skinparam sequenceArrowThickness 1
+skinparam roundcorner 15
+skinparam maxmessagesize 50
+skinparam dpi 120
+skinparam participantFontSize 10
+skinparam participantBackgroundColor #E3F2FD
+skinparam participantBorderColor #1976D2
+skinparam actorBackgroundColor #FFEBEE
+skinparam actorBorderColor #D32F2F
+skinparam noteBackgroundColor #FFF3CD
+skinparam noteBorderColor #856404
+
+title Partner (VAR) Catalog Ingest - Checkpoint 2 Feature
+
+actor "Store Admin" as Admin
+actor "Partner System" as Partner
+participant "Browser" as Browser
+participant "Flask App" as Flask
+participant "Partner Catalog\nService" as CatalogService
+participant "Input Validator\n(ADR 7: S.2)" as Validator
+participant "CSV/JSON Adapter\n(ADR 9: M.1)" as Adapter
+participant "Message Queue\n(ADR 16: I.2)" as Queue
+database "Database" as DB
+
+== Manual File Upload (Admin) ==
+Admin -> Browser: Navigate to /admin/manage-store
+Browser -> Flask: GET /admin/manage-store
+Flask -> CatalogService: get_all_partners()
+CatalogService -> DB: Query partners
+DB --> CatalogService: Partner list
+CatalogService --> Flask: Partners + statistics
+Flask --> Browser: Render Partner Catalog tab
+
+Admin -> Browser: Upload CSV/JSON file
+Browser -> Flask: POST /admin/partner-catalog\n(action=ingest_file)
+Flask -> CatalogService: ingest_csv_file() or\ningest_json_file()
+
+alt CSV Format
+    CatalogService -> Adapter: _parse_csv(content)
+    Adapter --> CatalogService: Parsed product list
+else JSON Format
+    CatalogService -> Adapter: _parse_json(content)
+    Adapter --> CatalogService: Parsed product list
+end
+
+CatalogService -> Validator: _validate_products(products)
+Validator -> Validator: Check SQL injection patterns\nSanitize HTML content
+Validator --> CatalogService: Validated products + errors
+
+loop For each valid product
+    CatalogService -> DB: Query existing PartnerProduct
+    alt Product exists
+        CatalogService -> DB: Update product (upsert)
+    else New product
+        CatalogService -> DB: Insert Product + PartnerProduct
+    end
+end
+
+CatalogService -> Queue: _publish_catalog_update()
+Queue --> CatalogService: Event published
+
+CatalogService --> Flask: Success + count
+Flask --> Browser: Redirect with message
+Browser --> Admin: Show success notification
+
+note over Validator
+  ADR 7: Validate Input (S.2)
+  - SQL injection prevention
+  - XSS sanitization via bleach
+  - Zero malicious payloads to DB
+end note
+
+note over Adapter
+  ADR 9: Adapter Pattern (M.1)
+  - CSV → internal format
+  - JSON → internal format
+  - XML → internal format
+  - < 20 person-hours to add new format
+end note
+
+== API-Based Ingest (Partner System) ==
+Partner -> Flask: POST /api/partner/ingest\nX-API-Key: pk_xxx_...
+Flask -> CatalogService: authenticate_api_key(api_key)
+
+CatalogService -> DB: Query PartnerAPIKey
+alt Invalid or Expired Key
+    CatalogService -> CatalogService: _log_auth_failure()
+    CatalogService --> Flask: (False, "Invalid API key", None)
+    Flask --> Partner: 401 Unauthorized
+else Valid Key
+    CatalogService -> DB: Update last_used, usage_count
+    CatalogService --> Flask: (True, "Authenticated", partner_id)
+end
+
+Flask -> CatalogService: ingest_json_file(partner_id, data)
+CatalogService -> Adapter: Parse data
+CatalogService -> Validator: Validate products
+CatalogService -> DB: Upsert products
+CatalogService -> Queue: Publish event
+CatalogService --> Flask: Success
+Flask --> Partner: 200 OK + product count
+
+note over CatalogService
+  ADR 6: Authenticate Actors (S.1)
+  - API key validation
+  - Expiration check
+  - Usage tracking & audit
+  - 100% unauthorized attempts denied
+end note
+
+== Scheduled Periodic Sync ==
+participant "Scheduler\nThread" as Scheduler
+
+CatalogService -> Scheduler: start_scheduler(interval=60)
+Scheduler --> CatalogService: Running in background
+
+loop Every check_interval seconds
+    Scheduler -> CatalogService: _check_and_sync_partners()
+    CatalogService -> DB: Query active partners
+    
+    loop For each partner needing sync
+        alt Sync frequency elapsed
+            CatalogService -> Partner: HTTP GET api_endpoint
+            Partner --> CatalogService: Product data
+            CatalogService -> Validator: Validate products
+            CatalogService -> DB: Upsert products
+            CatalogService -> Queue: Publish event
+        end
+    end
+end
+
+note over Scheduler
+  Optional Periodic Ingestion
+  - Configurable sync_frequency per partner
+  - Background thread execution
+  - Auto-retry on failures
+end note
+
+note over Queue
+  ADR 16: Publish-Subscribe (I.2)
+  - Decoupled event broadcasting
+  - Zero code changes to add
+    new consumers (reporting, etc.)
+end note
+
+@enduml
+

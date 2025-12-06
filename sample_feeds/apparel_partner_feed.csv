@@ -1,0 +1,17 @@
+id,name,description,price,stock,category,country_of_origin,brand,size_range,material
+APP-1001,Classic Cotton T-Shirt,Soft premium cotton crew neck everyday essential,24.99,10,Tops,Bangladesh,UrbanWear,XS-XXL,100% Cotton
+APP-1002,Slim Fit Chino Pants,Stretch fabric with modern slim cut,54.99,420,Bottoms,Vietnam,ModernFit,28-40,98% Cotton 2% Elastane
+APP-1003,Hooded Zip-Up Sweatshirt,Fleece-lined hoodie with kangaroo pocket,49.99,380,Outerwear,China,ComfortZone,S-XL,80% Cotton 20% Polyester
+APP-1004,Athletic Performance Shorts,Moisture-wicking fabric with inner brief,32.99,560,Activewear,Thailand,SportFlex,S-XXL,100% Polyester
+APP-1005,Button-Down Oxford Shirt,Wrinkle-resistant business casual essential,44.99,290,Tops,India,ClassicStyle,S-XXL,100% Cotton
+APP-1006,Denim Jacket Classic,Vintage wash with brass buttons,79.99,175,Outerwear,Turkey,DenimCo,XS-XL,100% Cotton Denim
+APP-1007,Yoga Leggings High-Waist,4-way stretch with hidden pocket,38.99,640,Activewear,Vietnam,FlexFit,XS-XL,87% Nylon 13% Spandex
+APP-1008,Wool Blend Crew Sweater,Soft merino blend perfect for layering,64.99,210,Tops,Italy,WoolCraft,S-XXL,50% Merino Wool 50% Acrylic
+APP-1009,Cargo Jogger Pants,Relaxed fit with multiple utility pockets,46.99,320,Bottoms,China,StreetStyle,S-XXL,100% Cotton Twill
+APP-1010,Lightweight Rain Jacket,Packable waterproof shell with hood,69.99,185,Outerwear,China,WeatherGuard,XS-XXL,100% Nylon
+APP-1011,V-Neck Cashmere Sweater,Luxuriously soft premium cashmere,129.99,95,Tops,Mongolia,LuxeKnit,S-XL,100% Cashmere
+APP-1012,Running Sneakers Mesh,Breathable upper with cushioned sole,89.99,410,Footwear,Vietnam,RunPro,6-13,Mesh/Rubber
+APP-1013,Fleece Pullover Quarter-Zip,Anti-pill fleece with stand collar,39.99,275,Tops,Bangladesh,ComfortZone,S-XXL,100% Polyester Fleece
+APP-1014,Tailored Wool Blazer,Modern fit single-breasted jacket,159.99,85,Outerwear,Portugal,TailorMade,36-46,70% Wool 30% Polyester
+APP-1015,Graphic Print Hoodie,Oversized fit with front logo design,44.99,520,Tops,China,StreetStyle,S-XXL,80% Cotton 20% Polyester
+

@@ -238,6 +238,59 @@ RMA_STATUS_LABELS = {
 }
 
 
+def publish_low_stock_alert(
+    product_id: int,
+    product_name: str,
+    current_stock: int,
+    threshold: int,
+    admin_user_ids: List[int],
+) -> None:
+    """
+    Publish a low stock alert notification to all admin users.
+    
+    This function implements the Publisher side of the Pub-Sub pattern.
+    Called when a product falls below the stock threshold.
+    
+    Args:
+        product_id: The product ID
+        product_name: Name of the product
+        current_stock: Current stock level
+        threshold: The low stock threshold
+        admin_user_ids: List of admin user IDs to notify
+    """
+    # Record the event for observability
+    record_event(
+        "low_stock_alert_published",
+        {
+            "product_id": product_id,
+            "product_name": product_name,
+            "current_stock": current_stock,
+            "threshold": threshold,
+            "admin_count": len(admin_user_ids),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        },
+    )
+
+    increment_counter(
+        "low_stock_notifications_total",
+        labels={"severity": "critical" if current_stock == 0 else "warning"},
+    )
+
+    # Create notifications for all admin users
+    notification_service = NotificationService()
+    severity = "OUT OF STOCK" if current_stock == 0 else "LOW STOCK"
+    
+    for admin_id in admin_user_ids:
+        notification_service.add_notification(
+            user_id=admin_id,
+            notification_type="low_stock",
+            title=f"⚠️ {severity}: {product_name}",
+            message=f"{product_name} has only {current_stock} units remaining (threshold: {threshold}). Please restock soon.",
+            reference_id=product_id,
+            reference_type="product",
+        )
+
+
 def publish_rma_status_change(
     return_request_id: int,
     customer_id: int,

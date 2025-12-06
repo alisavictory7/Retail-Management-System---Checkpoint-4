@@ -47,6 +47,7 @@ from src.services.history_service import HistoryService
 from src.services.low_stock_alert_service import LowStockAlertService
 from src.services.notification_service import NotificationService
 from src.services.flash_sale_service import FlashSaleService
+from src.services.partner_catalog_service import PartnerCatalogService
 
 app = Flask(__name__, template_folder='../templates', static_folder='../static')
 Config.configure_app(app)
@@ -1011,32 +1012,72 @@ def reserve_flash_sale(sale_id):
 
 @app.route('/api/partner/ingest', methods=['POST'])
 def partner_catalog_ingest():
-    """Ingest partner catalog data"""
+    """
+    Ingest partner catalog data via API.
+    
+    This endpoint implements the Partner (VAR) Catalog Ingest feature:
+    - ADR 6 (S.1): Authenticate Actors - API key validation
+    - ADR 7 (S.2): Validate Input - SQL injection prevention
+    - ADR 9 (M.1): Adapter Pattern - CSV/JSON format support
+    - ADR 16 (I.2): Publish-Subscribe - Event broadcasting
+    
+    Headers:
+        X-API-Key: Partner API key for authentication
+        Content-Type: application/json or text/csv
+    
+    Body:
+        CSV or JSON product feed data
+    """
     api_key = request.headers.get('X-API-Key')
     if not api_key:
-        return jsonify({'error': 'API key required'}), 401
+        return jsonify({'error': 'API key required', 'code': 'AUTH_REQUIRED'}), 401
     
     db = get_db()
-    quality_manager = get_quality_manager()
+    partner_service = PartnerCatalogService(db)
     
     try:
-        data = request.get_data(as_text=True)
-        partner_format = request.headers.get('Content-Type', '').split('/')[-1]
+        # Authenticate partner (ADR 6: Authenticate Actors)
+        auth_success, auth_message, partner_id = partner_service.authenticate_api_key(api_key)
+        if not auth_success:
+            return jsonify({'error': auth_message, 'code': 'AUTH_FAILED'}), 401
         
-        # Process with all quality tactics
-        success, result = quality_manager.process_partner_catalog_ingest(
-            partner_id=1,  # This would be determined from API key
-            data=data,
-            api_key=api_key
-        )
+        # Get request data
+        data = request.get_data(as_text=True)
+        if not data:
+            return jsonify({'error': 'No data provided', 'code': 'EMPTY_PAYLOAD'}), 400
+        
+        # Determine format from Content-Type header
+        content_type = request.headers.get('Content-Type', '').lower()
+        
+        # Process based on format (ADR 9: Adapter Pattern)
+        if 'json' in content_type:
+            success, message, count = partner_service.ingest_json_file(partner_id, data)
+        elif 'csv' in content_type or 'text/plain' in content_type:
+            success, message, count = partner_service.ingest_csv_file(partner_id, data)
+        else:
+            # Try to auto-detect format
+            if data.strip().startswith('{') or data.strip().startswith('['):
+                success, message, count = partner_service.ingest_json_file(partner_id, data)
+            else:
+                success, message, count = partner_service.ingest_csv_file(partner_id, data)
         
         if success:
-            return jsonify(result)
+            return jsonify({
+                'success': True,
+                'message': message,
+                'products_processed': count,
+                'partner_id': partner_id
+            })
         else:
-            return jsonify(result), 400
+            return jsonify({
+                'success': False,
+                'error': message,
+                'code': 'PROCESSING_FAILED'
+            }), 400
             
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        logger.error(f"Partner catalog ingest error: {e}")
+        return jsonify({'error': str(e), 'code': 'INTERNAL_ERROR'}), 500
 
 @app.route('/api/system/health', methods=['GET'])
 def system_health():
@@ -1066,6 +1107,259 @@ def admin_metrics():
         abort(403)
     return jsonify(get_metrics_snapshot())
 
+
+# ---------------------------------------------
+# Quality Scenario Monitoring Routes
+# ---------------------------------------------
+@app.route('/admin/quality-monitoring', methods=['GET'])
+def quality_scenario_monitoring():
+    """Interactive Quality Scenario Monitoring page for A.1 and P.1 testing"""
+    if not is_admin_user():
+        abort(403)
+    
+    metrics = get_metrics_snapshot()
+    scenario_metrics = _calculate_quality_scenario_metrics(metrics)
+    
+    return render_template(
+        'quality_scenario_monitoring.html',
+        scenario_metrics=scenario_metrics
+    )
+
+
+@app.route('/admin/quality-monitoring/test/availability', methods=['POST'])
+def test_availability_scenario():
+    """Test A.1 Availability scenario with configurable parameters"""
+    if not is_admin_user():
+        abort(403)
+    
+    try:
+        data = request.get_json() or {}
+        failure_rate = data.get('failure_rate', 0)  # 0-100%
+        threshold = data.get('threshold', 5)  # Circuit breaker threshold
+        timeout = data.get('timeout', 60)  # Recovery timeout seconds
+        
+        db = get_db()
+        quality_manager = get_quality_manager()
+        
+        # Simulate requests with configured failure rate
+        total_requests = 100
+        successful_requests = 0
+        circuit_breaker_trips = 0
+        failures_recorded = 0
+        
+        import random
+        
+        def simulated_payment():
+            nonlocal failures_recorded
+            if random.randint(1, 100) <= failure_rate:
+                failures_recorded += 1
+                raise Exception("Simulated payment failure")
+            return {"status": "success", "transaction_id": str(uuid4())}
+        
+        for i in range(total_requests):
+            try:
+                # Update circuit breaker config dynamically
+                quality_manager.circuit_breaker.failure_threshold = threshold
+                quality_manager.circuit_breaker.timeout_duration = timeout
+                
+                success, result = quality_manager.execute_with_circuit_breaker(simulated_payment)
+                if success:
+                    successful_requests += 1
+                else:
+                    # Check if circuit breaker is open
+                    if "temporarily unavailable" in str(result).lower():
+                        circuit_breaker_trips += 1
+            except Exception as e:
+                logger.warning(f"Availability test iteration {i} failed: {e}")
+        
+        success_rate = (successful_requests / total_requests) * 100 if total_requests > 0 else 0
+        
+        # Calculate simulated MTTR based on failure rate and timeout
+        mttr_seconds = (failure_rate / 100) * timeout if failure_rate > 0 else 0
+        mttr_display = _format_duration(mttr_seconds) if mttr_seconds > 0 else "No outages"
+        
+        # Determine if scenario is fulfilled (>=99% success, MTTR < 5 min)
+        fulfilled = success_rate >= 99.0 and mttr_seconds < 300
+        
+        # Determine status: Fulfilled, Failed, or In Progress
+        if fulfilled:
+            status = "Fulfilled"
+        elif success_rate < 99.0 or mttr_seconds >= 300:
+            status = "Failed"
+        else:
+            status = "In Progress"
+        
+        # Record metrics
+        increment_counter("quality_scenario_tests_total", labels={"scenario": "A.1"})
+        record_event("availability_test_completed", {
+            "failure_rate": failure_rate,
+            "threshold": threshold,
+            "timeout": timeout,
+            "success_rate": success_rate,
+            "circuit_breaker_trips": circuit_breaker_trips
+        })
+        
+        return jsonify({
+            "success": True,
+            "success_rate": success_rate,
+            "mttr": mttr_display,
+            "mttr_seconds": mttr_seconds,
+            "circuit_breaker_trips": circuit_breaker_trips,
+            "total_requests": total_requests,
+            "successful_requests": successful_requests,
+            "failures_recorded": failures_recorded,
+            "fulfilled": fulfilled,
+            "status": status
+        })
+        
+    except Exception as e:
+        logger.exception("Availability test failed")
+        return jsonify({
+            "success": False, 
+            "error": str(e),
+            "status": "Blocked"
+        }), 500
+
+
+@app.route('/admin/quality-monitoring/test/performance', methods=['POST'])
+def test_performance_scenario():
+    """Test P.1 Performance scenario with configurable parameters"""
+    if not is_admin_user():
+        abort(403)
+    
+    try:
+        data = request.get_json() or {}
+        simulated_load = data.get('simulated_load', 100)  # Requests per second
+        throttle_limit = data.get('throttle_limit', 100)  # Max RPS allowed
+        processing_time = data.get('processing_time', 50)  # ms per request
+        
+        quality_manager = get_quality_manager()
+        
+        # Update throttling config
+        quality_manager.throttling.max_requests_per_second = throttle_limit
+        
+        # Simulate requests and measure latency
+        num_requests = min(simulated_load, 500)  # Cap at 500 for safety
+        latencies = []
+        requests_processed = 0
+        requests_throttled = 0
+        
+        for i in range(num_requests):
+            start_time = time.perf_counter()
+            
+            # Check throttling
+            allowed, msg = quality_manager.check_throttling({'request_id': i})
+            
+            if allowed:
+                # Simulate processing time with some variance
+                import random
+                actual_processing = processing_time * (0.5 + random.random())
+                time.sleep(actual_processing / 1000)  # Convert ms to seconds
+                requests_processed += 1
+                
+                latency_ms = (time.perf_counter() - start_time) * 1000
+                latencies.append(latency_ms)
+                
+                # Record latency metric
+                observe_latency("order_processing_latency_ms", latency_ms, labels={"mode": "test"})
+            else:
+                requests_throttled += 1
+        
+        # Calculate P95 latency
+        if latencies:
+            latencies.sort()
+            p95_index = int(len(latencies) * 0.95)
+            p95_latency = latencies[p95_index] if p95_index < len(latencies) else latencies[-1]
+        else:
+            p95_latency = 0
+        
+        # Determine if scenario is fulfilled (P95 <= 500ms)
+        fulfilled = p95_latency <= 500
+        
+        # Determine status: Fulfilled, Failed, or In Progress
+        if fulfilled:
+            status = "Fulfilled"
+        elif p95_latency > 500:
+            status = "Failed"
+        else:
+            status = "In Progress"
+        
+        # Record metrics
+        increment_counter("quality_scenario_tests_total", labels={"scenario": "P.1"})
+        record_event("performance_test_completed", {
+            "simulated_load": simulated_load,
+            "throttle_limit": throttle_limit,
+            "processing_time": processing_time,
+            "p95_latency": p95_latency,
+            "requests_processed": requests_processed,
+            "requests_throttled": requests_throttled
+        })
+        
+        return jsonify({
+            "success": True,
+            "p95_latency": p95_latency,
+            "avg_latency": sum(latencies) / len(latencies) if latencies else 0,
+            "min_latency": min(latencies) if latencies else 0,
+            "max_latency": max(latencies) if latencies else 0,
+            "requests_processed": requests_processed,
+            "requests_throttled": requests_throttled,
+            "total_requests": num_requests,
+            "fulfilled": fulfilled,
+            "status": status
+        })
+        
+    except Exception as e:
+        logger.exception("Performance test failed")
+        return jsonify({
+            "success": False, 
+            "error": str(e),
+            "status": "Blocked"
+        }), 500
+
+
+@app.route('/admin/quality-monitoring/reset/availability', methods=['POST'])
+def reset_availability_metrics():
+    """Reset availability circuit breaker and metrics"""
+    if not is_admin_user():
+        abort(403)
+    
+    try:
+        quality_manager = get_quality_manager()
+        
+        # Reset circuit breaker state
+        quality_manager.circuit_breaker.reset()
+        
+        record_event("availability_metrics_reset", {"reset_by": g.current_user.username if g.current_user else "admin"})
+        
+        return jsonify({"success": True, "message": "Availability metrics reset successfully"})
+        
+    except Exception as e:
+        logger.exception("Failed to reset availability metrics")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@app.route('/admin/quality-monitoring/reset/performance', methods=['POST'])
+def reset_performance_metrics():
+    """Reset performance throttling state"""
+    if not is_admin_user():
+        abort(403)
+    
+    try:
+        quality_manager = get_quality_manager()
+        
+        # Reset throttling state
+        with quality_manager.throttling.lock:
+            quality_manager.throttling.request_times.clear()
+        
+        record_event("performance_metrics_reset", {"reset_by": g.current_user.username if g.current_user else "admin"})
+        
+        return jsonify({"success": True, "message": "Performance metrics reset successfully"})
+        
+    except Exception as e:
+        logger.exception("Failed to reset performance metrics")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
 @app.route('/admin/dashboard', methods=['GET'])
 def admin_dashboard():
     if not is_admin_user():
@@ -1090,9 +1384,12 @@ def admin_dashboard():
     error_rate = _calculate_error_rate(metrics)
     scenario_metrics = _calculate_quality_scenario_metrics(metrics)
     
-    # Checkpoint 4: Get low stock alerts
+    # Checkpoint 4: Get low stock alerts and notify admins
     low_stock_service = LowStockAlertService(db)
     low_stock_summary = low_stock_service.get_alert_summary()
+    
+    # Notify admins of any new low stock items
+    low_stock_service.notify_admins_of_low_stock()
     
     # Get additional data for dashboard portal cards
     users = db.query(User).all()
@@ -1100,14 +1397,12 @@ def admin_dashboard():
     flash_service = FlashSaleService(db)
     flash_sales = flash_service.get_active_flash_sales()
     
-    # Get return request counts by status
+    # Get return request counts by status (accurate metrics for Returns Portal)
     pending_returns = db.query(ReturnRequest).filter(
-        ReturnRequest.status.in_(['PENDING_AUTHORIZATION', 'PENDING_CUSTOMER_INFO'])
+        ReturnRequest.status == 'PENDING_AUTHORIZATION'
     ).count()
     in_transit_returns = db.query(ReturnRequest).filter_by(status='IN_TRANSIT').count()
-    inspection_returns = db.query(ReturnRequest).filter(
-        ReturnRequest.status.in_(['RECEIVED', 'UNDER_INSPECTION'])
-    ).count()
+    inspection_returns = db.query(ReturnRequest).filter_by(status='UNDER_INSPECTION').count()
     
     user = db.query(User).filter_by(userID=session.get('user_id')).first()
     
@@ -1356,11 +1651,11 @@ def admin_flash_sales():
 
 
 # ---------------------------------------------
-# Admin: Manage Store (Unified Products, Stock, Flash Sales)
+# Admin: Manage Store (Unified Products, Stock, Flash Sales, Partner Catalog)
 # ---------------------------------------------
 @app.route('/admin/manage-store', methods=['GET'])
 def manage_store():
-    """Unified store management page with products, stock alerts, and flash sales."""
+    """Unified store management page with products, stock alerts, flash sales, and partner catalog."""
     if not is_admin_user():
         abort(403)
     
@@ -1369,18 +1664,27 @@ def manage_store():
     # Get products
     products = db.query(Product).order_by(Product.productID.desc()).all()
     
-    # Get low stock alerts
+    # Get low stock alerts and send notifications to admins
     low_stock_service = LowStockAlertService(db)
     low_stock_summary = low_stock_service.get_alert_summary()
+    
+    # Notify admins of any new low stock items
+    low_stock_service.notify_admins_of_low_stock()
     
     # Get flash sales
     flash_service = FlashSaleService(db)
     active_flash_sales = flash_service.get_active_flash_sales()
     flash_sales = db.query(FlashSale).order_by(FlashSale._start_time.desc()).all()
     
+    # Get partner catalog data (Checkpoint 2: Partner VAR Catalog Ingest)
+    partner_service = PartnerCatalogService(db)
+    partners = partner_service.get_all_partners()
+    catalog_stats = partner_service.get_catalog_statistics()
+    
     # Get any messages from session
     message = request.args.get('message')
     flash_sale_message = request.args.get('flash_message')
+    partner_message = request.args.get('partner_message')
     
     return render_template(
         'manage_store.html',
@@ -1388,9 +1692,108 @@ def manage_store():
         low_stock_summary=low_stock_summary,
         active_flash_sales=active_flash_sales,
         flash_sales=flash_sales,
+        partners=partners,
+        catalog_stats=catalog_stats,
         message=message,
         flash_sale_message=flash_sale_message,
+        partner_message=partner_message,
     )
+
+# ---------------------------------------------
+# Admin: Partner Catalog Management (Checkpoint 2: Partner VAR Catalog Ingest)
+# ---------------------------------------------
+@app.route('/admin/partner-catalog', methods=['POST'])
+def admin_partner_catalog():
+    """
+    Handle partner catalog management actions.
+    
+    Implements Checkpoint 2 requirements:
+    - Ingest partner product feed (CSV/JSON) via adapter pattern
+    - Validate, transform, and upsert items
+    - Schedule periodic ingestion for partners
+    
+    Quality Scenarios Addressed:
+    - S.1: Authenticate Actors - API key validation for partners
+    - S.2: Validate Input - SQL injection prevention
+    - M.1: Adapter Pattern - Support for CSV/JSON/XML formats
+    - I.2: Publish-Subscribe - Event broadcasting for catalog updates
+    """
+    if not is_admin_user():
+        abort(403)
+    
+    db = get_db()
+    partner_service = PartnerCatalogService(db)
+    action = request.form.get('action', '')
+    
+    try:
+        if action == 'add_partner':
+            # Add new partner
+            name = request.form.get('name', '').strip()
+            api_endpoint = request.form.get('api_endpoint', '').strip() or None
+            sync_frequency = int(request.form.get('sync_frequency', 3600))
+            
+            if not name:
+                return redirect(url_for('manage_store', partner_message='Partner name is required'))
+            
+            success, message, partner = partner_service.create_partner(
+                name=name,
+                api_endpoint=api_endpoint,
+                sync_frequency=sync_frequency
+            )
+            
+            return redirect(url_for('manage_store', partner_message=message))
+        
+        elif action == 'ingest_file':
+            # Ingest catalog from uploaded file (CSV/JSON)
+            partner_id = int(request.form.get('partner_id', 0))
+            
+            if 'catalog_file' not in request.files:
+                return redirect(url_for('manage_store', partner_message='No file uploaded'))
+            
+            file = request.files['catalog_file']
+            if file.filename == '':
+                return redirect(url_for('manage_store', partner_message='No file selected'))
+            
+            # Read file content
+            file_content = file.read().decode('utf-8')
+            filename = file.filename.lower()
+            
+            # Determine format and ingest
+            if filename.endswith('.csv'):
+                success, message, count = partner_service.ingest_csv_file(partner_id, file_content)
+            elif filename.endswith('.json'):
+                success, message, count = partner_service.ingest_json_file(partner_id, file_content)
+            else:
+                return redirect(url_for('manage_store', partner_message='Unsupported file format. Use CSV or JSON'))
+            
+            return redirect(url_for('manage_store', partner_message=message))
+        
+        elif action == 'sync':
+            # Sync partner catalog from API endpoint
+            partner_id = int(request.form.get('partner_id', 0))
+            success, message, count = partner_service.sync_partner_catalog(partner_id)
+            return redirect(url_for('manage_store', partner_message=message))
+        
+        elif action == 'delete':
+            # Delete partner
+            partner_id = int(request.form.get('partner_id', 0))
+            success, message = partner_service.delete_partner(partner_id)
+            return redirect(url_for('manage_store', partner_message=message))
+        
+        elif action == 'update_frequency':
+            # Update sync frequency
+            partner_id = int(request.form.get('partner_id', 0))
+            frequency = int(request.form.get('sync_frequency', 3600))
+            success, message = partner_service.update_sync_frequency(partner_id, frequency)
+            return redirect(url_for('manage_store', partner_message=message))
+        
+        else:
+            return redirect(url_for('manage_store', partner_message='Unknown action'))
+            
+    except Exception as e:
+        logger.error(f"Partner catalog error: {e}")
+        return redirect(url_for('manage_store', partner_message=f'Error: {str(e)}'))
+
 
 @app.route('/api/features/<feature_name>/toggle', methods=['POST'])
 def toggle_feature(feature_name):

@@ -10,7 +10,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
 
 from src.tactics.manager import QualityTacticsManager
 from src.database import SessionLocal
-from src.models import User, Product, Partner, PartnerAPIKey, FlashSale, Sale, OrderQueue, AuditLog, SystemMetrics, TestRecord, FeatureToggle, CircuitBreakerState, MessageQueue
+from src.models import User, Product, Partner, PartnerAPIKey, FlashSale, Sale, OrderQueue, AuditLog, SystemMetrics, TestRecord, FeatureToggle, CircuitBreakerState, MessageQueue, SaleItem
 from datetime import datetime, timezone, timedelta
 import time
 import random
@@ -30,38 +30,49 @@ class ComprehensiveQualityScenarioTester:
     def cleanup_test_data(self):
         """Clean up test data to prevent conflicts"""
         try:
-            # Clean up in reverse dependency order
-            self.db.query(PartnerAPIKey).filter(PartnerAPIKey.api_key.like('test_%')).delete()
-            self.db.query(FlashSale).delete()
-            # Clean up SaleItem before Sale
+            # Clean up in proper dependency order (most dependent first)
+            # First, clean up tables that reference other tables
+            self.db.query(PartnerAPIKey).filter(PartnerAPIKey.api_key.like('test_%')).delete(synchronize_session=False)
+            
+            # Clean up ReturnRequest items before Sale (if they reference Sale)
             try:
-                from src.models import SaleItem
-                self.db.query(SaleItem).delete()
-            except:
-                pass
-            self.db.query(Sale).delete()
-            self.db.query(OrderQueue).delete()
-            self.db.query(AuditLog).delete()
-            self.db.query(SystemMetrics).delete()
-            self.db.query(TestRecord).delete()
-            self.db.query(FeatureToggle).delete()
-            self.db.query(CircuitBreakerState).delete()
-            self.db.query(MessageQueue).delete()
-            self.db.query(Partner).filter(Partner.name.like('Test%')).delete()
-            self.db.query(User).filter(User.username.like('test_%')).delete()
-            self.db.query(Product).filter(Product.name.like('Test%')).delete()
+                from src.models import ReturnItem, ReturnRequest, Refund, SaleItem
+                self.db.query(Refund).delete(synchronize_session=False)
+                self.db.query(ReturnItem).delete(synchronize_session=False)
+                self.db.query(ReturnRequest).delete(synchronize_session=False)
+                self.db.query(SaleItem).delete(synchronize_session=False)
+            except Exception as inner_e:
+                print(f"Warning: Return/SaleItem cleanup: {inner_e}")
+                self.db.rollback()
+            
+            self.db.query(FlashSale).delete(synchronize_session=False)
+            self.db.query(Sale).delete(synchronize_session=False)
+            self.db.query(OrderQueue).delete(synchronize_session=False)
+            self.db.query(AuditLog).delete(synchronize_session=False)
+            self.db.query(SystemMetrics).delete(synchronize_session=False)
+            self.db.query(TestRecord).delete(synchronize_session=False)
+            self.db.query(FeatureToggle).delete(synchronize_session=False)
+            self.db.query(CircuitBreakerState).delete(synchronize_session=False)
+            self.db.query(MessageQueue).delete(synchronize_session=False)
+            self.db.query(Partner).filter(Partner.name.like('Test%')).delete(synchronize_session=False)
+            self.db.query(User).filter(User.username.like('test_%')).delete(synchronize_session=False)
+            self.db.query(Product).filter(Product.name.like('Test%')).delete(synchronize_session=False)
             self.db.commit()
         except Exception as e:
             print(f"Warning: Cleanup failed: {e}")
+            try:
             self.db.rollback()
+            except:
+                pass
     
     def create_test_data(self):
         """Create test data for scenarios"""
-        # Create test user
+        # Create test user (role is required and cannot be null)
         user = User(
             username=f"test_user_{self.unique_id}", 
             email=f"test_{self.unique_id}@example.com", 
-            passwordHash="hash"
+            passwordHash="hash",
+            role="customer"  # Required field - cannot be null
         )
         self.db.add(user)
         self.db.commit()
@@ -75,6 +86,19 @@ class ComprehensiveQualityScenarioTester:
         self.db.add(product)
         self.db.commit()
         self.db.refresh(product)
+        
+        # Create test sale (needed for OrderQueue FK constraint)
+        sale = Sale()
+        sale.userID = user.userID
+        sale._sale_date = datetime.now(timezone.utc)
+        sale._totalAmount = 100.00
+        sale._status = "pending"
+        self.db.add(sale)
+        self.db.commit()
+        self.db.refresh(sale)
+        
+        # Store sale ID for tests
+        self.test_sale_id = sale.saleID
         
         return user, product
     
@@ -122,7 +146,7 @@ class ComprehensiveQualityScenarioTester:
                 failures += 1
         
         # Test graceful degradation (queuing)
-        order_data = {'sale_id': 1, 'user_id': user.userID, 'total_amount': 100.0}
+        order_data = {'sale_id': self.test_sale_id, 'user_id': user.userID, 'total_amount': 100.0}
         try:
             queue_success, queue_message = self.quality_manager.enqueue_order(order_data, priority=1)
         except Exception as e:
@@ -381,7 +405,7 @@ class ComprehensiveQualityScenarioTester:
         throttled, message = self.quality_manager.check_throttling(request_data)
         
         # Test queuing
-        order_data = {'sale_id': 1, 'user_id': user.userID, 'total_amount': 100.0}
+        order_data = {'sale_id': self.test_sale_id, 'user_id': user.userID, 'total_amount': 100.0}
         queue_success, queue_message = self.quality_manager.enqueue_order(order_data, priority=1)
         
         p1_fulfilled = queue_success  # Basic functionality test
